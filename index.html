@@ -5,25 +5,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Support Ticket System</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
 </head>
 <body>
   <h1>Submit a Support Ticket</h1>
-  
+
+  <!-- Ticket Form -->
   <form id="ticketForm">
     <input type="text" id="name" placeholder="Your Name" required><br>
     <input type="email" id="email" placeholder="Your Email" required><br>
     <textarea id="issue" placeholder="Describe your issue" required></textarea><br>
     <select id="priority">
-      <option value="High">High</option>
-      <option value="Medium">Medium</option>
-      <option value="Low">Low</option>
+      <option value="1">High</option>
+      <option value="2">Medium</option>
+      <option value="3">Low</option>
     </select><br>
     <button type="submit">Submit Ticket</button>
   </form>
 
-  <script src="app.js"></script>
+  <!-- Ticket List Section -->
+  <h2>All Support Tickets</h2>
+  <ul id="ticketsList"></ul>
+
+  <!-- Firebase Scripts -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { 
+      getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDGTJtFqWov20YSEAjtj3nH6a3TikoWawY",
+      authDomain: "support-ticket-system-e467d.firebaseapp.com",
+      projectId: "support-ticket-system-e467d",
+      storageBucket: "support-ticket-system-e467d.firebasestorage.app",
+      messagingSenderId: "985794520033",
+      appId: "1:985794520033:web:8c60c5a4941e34861268a0",
+      measurementId: "G-4WX6VXQ1WT"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Handle Form Submit
+    const ticketForm = document.getElementById("ticketForm");
+    ticketForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      await addDoc(collection(db, "tickets"), {
+        name: document.getElementById("name").value,
+        email: document.getElementById("email").value,
+        issue: document.getElementById("issue").value,
+        priority: document.getElementById("priority").value,
+        createdAt: serverTimestamp(),
+        status: "Open"
+      });
+
+      alert("Ticket Submitted!");
+      ticketForm.reset();
+    });
+
+    // Real-time Listener for Tickets (Fixed: Single orderBy to avoid index error)
+    const ticketsList = document.getElementById("ticketsList");
+    const q = query(collection(db, "tickets"), orderBy("createdAt", "desc"));
+
+    onSnapshot(q, (snapshot) => {
+      ticketsList.innerHTML = ""; // Clear list
+      snapshot.forEach((doc) => {
+        const ticket = doc.data();
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${ticket.name}</strong> (${ticket.email})<br>
+                        Priority: ${ticket.priority} | Issue: ${ticket.issue} | Status: ${ticket.status}`;
+        ticketsList.appendChild(li);
+      });
+    });
+  </script>
 </body>
 </html>
