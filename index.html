@@ -15,9 +15,9 @@
     <input type="email" id="email" placeholder="Your Email" required><br>
     <textarea id="issue" placeholder="Describe your issue" required></textarea><br>
     <select id="priority">
-      <option value="1">High</option>
-      <option value="2">Medium</option>
-      <option value="3">Low</option>
+      <option value="High">High</option>
+      <option value="Medium">Medium</option>
+      <option value="Low">Low</option>
     </select><br>
     <button type="submit">Submit Ticket</button>
   </form>
@@ -38,7 +38,7 @@
       apiKey: "AIzaSyDGTJtFqWov20YSEAjtj3nH6a3TikoWawY",
       authDomain: "support-ticket-system-e467d.firebaseapp.com",
       projectId: "support-ticket-system-e467d",
-      storageBucket: "support-ticket-system-e467d.firebasestorage.app",
+      storageBucket: "support-ticket-system-e467d.appspot.com", 
       messagingSenderId: "985794520033",
       appId: "1:985794520033:web:8c60c5a4941e34861268a0",
       measurementId: "G-4WX6VXQ1WT"
@@ -65,7 +65,7 @@
       ticketForm.reset();
     });
 
-    // Real-time Listener for Tickets (Fixed: Single orderBy to avoid index error)
+    
     const ticketsList = document.getElementById("ticketsList");
     const q = query(collection(db, "tickets"), orderBy("createdAt", "desc"));
 
