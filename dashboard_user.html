@@ -4,18 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Dashboard - Support Ticket System</title>
-    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load Firebase Libraries -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setLogLevel, collection, query, onSnapshot, addDoc, serverTimestamp, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // IMPORTANT: Import all necessary functions from the central firebase.js
+        import { 
+            appId,
+            auth, 
+            db, 
+            onAuthStateChanged, 
+            signOut, 
+            collection, 
+            query, 
+            onSnapshot, 
+            addDoc, 
+            serverTimestamp, 
+            where,
+            signInAnonymously,
+            signInWithCustomToken
+        } from './firebase.js';
 
-        // Set up global access for Firebase instances and State
-        window.app = null;
-        window.db = null;
-        window.auth = null;
+        // Set up global access for State
         window.userId = null;
         window.customerName = 'Guest Customer'; // Placeholder
         window.isAuthReady = false;
@@ -23,13 +31,6 @@
         const state = {
             userTickets: [],
         };
-
-        setLogLevel('Debug');
-
-        // Global variables provided by the Canvas environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? initialAuthToken : null;
 
         // --- UI Modal Toggle ---
         window.toggleTicketModal = (show) => {
@@ -41,9 +42,9 @@
             }
         };
 
-        // --- Gemini API Call Utility ---
-
+        // --- Gemini API Call Utility (Keep separate for clarity, using generic logic) ---
         async function callGeminiApi(systemPrompt, userQuery) {
+            // IMPORTANT: Replace this placeholder with your actual Gemini API Key
             const apiKey = "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
             
@@ -52,6 +53,7 @@
                 systemInstruction: { parts: [{ text: systemPrompt }] },
             };
 
+            // ... (rest of the Gemini logic, unchanged from original) ...
             const MAX_RETRIES = 3;
             for (let i = 0; i < MAX_RETRIES; i++) {
                 try {
@@ -76,7 +78,6 @@
                 } catch (error) {
                     console.error(`Attempt ${i + 1} failed:`, error);
                     if (i < MAX_RETRIES - 1) {
-                        // Wait for exponential backoff before retrying
                         await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
                     } else {
                         return "AI Error: Could not generate response. Please try again later.";
@@ -86,15 +87,13 @@
             return "AI Error: Failed after multiple retries.";
         }
         
-        // --- Gemini Feature Logic ---
-
+        // --- Gemini Feature Logic (Unchanged) ---
         window.refineDescription = async () => {
             const descriptionEl = document.getElementById('ticketDescription');
             const refineButton = document.getElementById('refineButton');
             const originalDescription = descriptionEl.value.trim();
 
             if (originalDescription.length < 10) {
-                // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
                 alert("Please enter a brief description (at least 10 characters) to refine.");
                 return;
             }
@@ -112,11 +111,9 @@
             refineButton.disabled = false;
         };
 
-        // --- Ticket Submission Logic ---
-
+        // --- Ticket Submission Logic (Using imported functions) ---
         window.submitTicket = async () => {
-            if (!window.db || !window.isAuthReady || !window.userId) {
-                // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
+            if (!db || !window.isAuthReady || !window.userId) {
                 alert("System not ready or user not logged in. Please wait.");
                 return;
             }
@@ -126,7 +123,6 @@
             const priority = document.getElementById('ticketPriority').value;
             
             if (!title || !description || !priority) {
-                 // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
                 alert("Please fill out all ticket fields.");
                 return;
             }
@@ -136,14 +132,17 @@
             submitButton.textContent = 'Submitting...';
 
             try {
-                const ticketsRef = collection(window.db, `artifacts/${appId}/public/data/tickets`);
+                // Correctly referencing the collection path (using artifacts/${appId}/public/data/tickets)
+                const ticketsRef = collection(db, `artifacts/${appId}/public/data/tickets`); 
+                
+                // Saving ticket with customer-specific data (REQUIRED for filtering)
                 await addDoc(ticketsRef, {
                     title,
                     description,
                     priority,
-                    customer: window.customerName, // Use the display name
-                    customerId: window.userId, // Use the unique ID for filtering
-                    status: 'Open', // Initial status
+                    customer: window.customerName, 
+                    customerId: window.userId, // KEY for filtering
+                    status: 'Open', 
                     timestamp: serverTimestamp(),
                 });
                 
@@ -152,13 +151,10 @@
                 document.getElementById('ticketDescription').value = '';
                 document.getElementById('ticketPriority').value = 'Medium';
                 toggleTicketModal(false);
-                // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
                 alert("Ticket submitted successfully! You can see it in 'My Tickets'.");
-
 
             } catch (error) {
                 console.error("Error submitting ticket:", error);
-                // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
                 alert("Failed to submit ticket. See console for details.");
             } finally {
                 submitButton.disabled = false;
@@ -166,7 +162,7 @@
             }
         };
 
-        // --- Ticket Rendering and Stats Update ---
+        // --- Ticket Rendering and Stats Update (Unchanged) ---
 
         function getStatusColor(status) {
             switch(status) {
@@ -187,7 +183,7 @@
             const activeTickets = tickets.filter(t => t.status !== 'Resolved' && t.status !== 'Closed');
             const completedTickets = tickets.filter(t => t.status === 'Resolved' || t.status === 'Closed');
 
-            // 2. Update Stat Cards (NEW)
+            // 2. Update Stat Cards
             document.getElementById('statTotalCount').textContent = tickets.length;
             document.getElementById('statActiveCount').textContent = activeTickets.length;
             document.getElementById('statCompletedCount').textContent = completedTickets.length;
@@ -233,75 +229,57 @@
             }
         };
         
-        // --- Firebase Initialization and Data Listener ---
+        // --- Firebase Authentication and Listener (Using imported functions) ---
+        onAuthStateChanged(auth, async (user) => {
+            let currentUserId;
+            // Check if user is logged in
+            if (user) {
+                currentUserId = user.uid;
+            } else {
+                // If no user is logged in, redirect to customer login
+                window.location.href = 'customer_login.html';
+                return; 
+            }
+            
+            window.userId = currentUserId;
+            window.customerName = user.displayName || ('User-' + window.userId.substring(0, 8)); // Use actual display name
+            window.isAuthReady = true;
+            
+            // Update welcome message
+            document.getElementById('welcomeName').textContent = window.customerName;
+            document.getElementById('customerIdDisplay').textContent = window.userId;
 
-        if (firebaseConfig) {
-            window.app = initializeApp(firebaseConfig);
-            window.db = getFirestore(window.app);
-            window.auth = getAuth(window.app);
 
-            onAuthStateChanged(window.auth, async (user) => {
-                let currentUserId;
-                if (user) {
-                    currentUserId = user.uid;
-                } else if (initialAuthToken) {
-                    try {
-                        const credential = await signInWithCustomToken(window.auth, initialAuthToken);
-                        currentUserId = credential.user.uid;
-                    } catch (error) {
-                        console.error("Custom Auth Sign-in Failed:", error);
-                        await signInAnonymously(window.auth);
-                        currentUserId = window.auth.currentUser.uid;
-                    }
-                } else {
-                    await signInAnonymously(window.auth);
-                    currentUserId = window.auth.currentUser.uid;
-                }
+            // Start Firestore listener for user's tickets
+            const ticketsRef = collection(db, `artifacts/${appId}/public/data/tickets`);
+            
+            // Filter tickets to ONLY show the current user's tickets (KEY REQUIREMENT)
+            const ticketsQuery = query(ticketsRef, where("customerId", "==", window.userId));
+
+            onSnapshot(ticketsQuery, (snapshot) => {
+                state.userTickets = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
                 
-                window.userId = currentUserId || crypto.randomUUID();
-                // Mock a customer name based on the ID for display purposes
-                window.customerName = 'User-' + window.userId.substring(0, 8);
-                window.isAuthReady = true;
+                // Sort by newest first
+                state.userTickets.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
                 
-                // Update welcome message
-                document.getElementById('welcomeName').textContent = window.customerName;
-
-                if (window.db && window.isAuthReady) {
-                    const ticketsRef = collection(window.db, `artifacts/${appId}/public/data/tickets`);
-                    
-                    // Filter tickets to ONLY show the current user's tickets
-                    const ticketsQuery = query(ticketsRef, where("customerId", "==", window.userId));
-
-                    onSnapshot(ticketsQuery, (snapshot) => {
-                        state.userTickets = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-                        
-                        // Sort by newest first (important for displaying recent completed tickets)
-                        state.userTickets.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-                        
-                        window.renderUserTickets(state.userTickets);
-                        
-                    }, (error) => {
-                        console.error("Error fetching user tickets:", error);
-                        document.getElementById('activeTicketList').innerHTML = `<div class="p-4 bg-red-800 bg-opacity-50 rounded-lg border border-red-700"><p class="font-bold text-red-400">Error</p><p class="text-sm text-gray-400">Failed to fetch your tickets.</p></div>`;
-                    });
-                }
+                window.renderUserTickets(state.userTickets);
+                
+            }, (error) => {
+                console.error("Error fetching user tickets:", error);
+                document.getElementById('activeTicketList').innerHTML = `<div class="p-4 bg-red-800 bg-opacity-50 rounded-lg border border-red-700"><p class="font-bold text-red-400">Error</p><p class="text-sm text-gray-400">Failed to fetch your tickets.</p></div>`;
             });
-        }
+        });
         
         window.userLogout = () => {
-            if (window.auth) {
-                signOut(window.auth).then(() => {
-                    window.location.href = 'customer-signup.html'; // Redirect to customer login/signup
-                }).catch((error) => {
-                    console.error("Logout failed:", error);
-                });
-            } else {
-                 window.location.href = 'customer-signup.html';
-            }
+            signOut(auth).then(() => {
+                window.location.href = 'customer_login.html'; // Redirect to customer login/signup
+            }).catch((error) => {
+                console.error("Logout failed:", error);
+            });
         };
     </script>
     <style>
-        /* Custom font */
+        /* ... (CSS Styles remain unchanged) ... */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
@@ -413,20 +391,15 @@
     </style>
 </head>
 <body>
-
-    <!-- Main Dashboard Container -->
+    
     <div class="flex flex-col h-screen w-full p-6 space-y-6">
 
-        <!-- Header and Welcome/Logout Section (Div 1) -->
         <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-gray-700">
-            <!-- Header Title -->
             <h1 class="main-title text-3xl md:text-4xl font-bold tracking-wider mb-3 sm:mb-0">
                 Customer Dashboard
             </h1>
             
-            <!-- New Ticket and Logout -->
             <div class="flex items-center space-x-4">
-                <!-- NEW TICKET BUTTON -->
                 <button onclick="toggleTicketModal(true)" class="custom-button px-4 py-2 text-sm rounded-lg font-semibold whitespace-nowrap">
                     + New Ticket
                 </button>
@@ -436,13 +409,10 @@
             </div>
         </header>
 
-        <!-- MAIN GRID CONTAINER (Responsive 1, 2, 4, or 5 column layout) -->
         <div class="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 overflow-y-auto">
 
-            <!-- STATS ROW: Total, Active, Completed Tickets (Takes full width) -->
             <div class="lg:col-span-4 xl:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                <!-- Stat Card: Total Tickets -->
                 <div class="glass-card text-center flex-shrink-0">
                     <div class="glass-card-inner">
                         <p class="text-4xl font-extrabold text-pink-400" id="statTotalCount">0</p>
@@ -450,7 +420,6 @@
                     </div>
                 </div>
 
-                <!-- Stat Card: Active Tickets -->
                 <div class="glass-card text-center flex-shrink-0">
                     <div class="glass-card-inner">
                         <p class="text-4xl font-extrabold text-blue-400" id="statActiveCount">0</p>
@@ -458,7 +427,6 @@
                     </div>
                 </div>
 
-                <!-- Stat Card: Completed Tickets -->
                 <div class="glass-card text-center flex-shrink-0">
                     <div class="glass-card-inner">
                         <p class="text-4xl font-extrabold text-green-400" id="statCompletedCount">0</p>
@@ -467,11 +435,9 @@
                 </div>
             </div>
 
-            <!-- 2. WELCOME / PROFILE CARD (Matches image style - span 2) -->
             <div class="lg:col-span-2 xl:col-span-2 glass-card h-full min-h-[16rem]">
                 <div class="glass-card-inner flex flex-col justify-between">
                     <div class="flex items-center space-x-4">
-                        <!-- Placeholder for Avatar -->
                         <div class="w-20 h-20 rounded-full bg-purple-700 flex items-center justify-center text-3xl font-bold">
                              U
                         </div>
@@ -489,7 +455,6 @@
                 </div>
             </div>
 
-            <!-- 3. TICKET PROGRESS / TIME TRACKER CARD (Placeholder - span 1) -->
             <div class="lg:col-span-1 xl:col-span-1 glass-card h-full min-h-[16rem]">
                 <div class="glass-card-inner">
                     <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
@@ -502,7 +467,6 @@
                 </div>
             </div>
             
-            <!-- 4. PRIORITY BREAKDOWN CARD (Placeholder - span 1) -->
             <div class="lg:col-span-1 xl:col-span-2 glass-card h-full min-h-[16rem]">
                 <div class="glass-card-inner">
                     <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
@@ -518,7 +482,6 @@
                 </div>
             </div>
 
-            <!-- 5. MY ACTIVE TICKETS LIST (Takes up 3 columns) -->
             <div class="lg:col-span-3 xl:col-span-3 glass-card flex flex-col min-h-[300px] h-full">
                 <div class="glass-card-inner h-full flex flex-col">
                     
@@ -532,7 +495,6 @@
                         Currently open or in progress requests.
                     </p>
 
-                    <!-- Container for dynamically loaded active tickets -->
                     <div id="activeTicketList" class="space-y-4 overflow-y-auto flex-grow pr-2">
                         <div class="p-4 bg-gray-800 bg-opacity-50 rounded-lg border border-gray-700 shadow-lg">
                             <p class="font-bold text-pink-400">Loading Active Tickets...</p>
@@ -542,7 +504,6 @@
                 </div>
             </div>
 
-            <!-- 6. RECENTLY COMPLETED TICKETS LIST (Takes up 2 columns) -->
             <div class="lg:col-span-1 xl:col-span-2 glass-card flex flex-col min-h-[300px] h-full">
                 <div class="glass-card-inner h-full flex flex-col">
                     <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
@@ -559,20 +520,16 @@
         </div>
     </div>
     
-    <!-- New Ticket Submission Modal -->
     <div id="ticketModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
         <div class="glass-card w-full max-w-lg max-h-[90vh] overflow-hidden">
             <div class="glass-card-inner h-full flex flex-col">
                 
-                <!-- Modal Header -->
                 <div class="flex justify-between items-center border-b border-gray-700 pb-3 mb-6">
                     <h3 class="text-2xl font-bold text-white">Submit a New Ticket</h3>
                     <button onclick="toggleTicketModal(false)" class="text-gray-400 hover:text-white transition duration-200 text-3xl leading-none">&times;</button>
                 </div>
 
-                <!-- Modal Form Content -->
                 <form class="space-y-4 flex-grow overflow-y-auto pr-2">
-                    <!-- Title -->
                     <div>
                         <label for="ticketTitle" class="block text-sm font-medium text-gray-300 mb-2">Issue Title</label>
                         <input type="text" id="ticketTitle" required
@@ -581,7 +538,6 @@
                         >
                     </div>
 
-                    <!-- Priority -->
                     <div>
                         <label for="ticketPriority" class="block text-sm font-medium text-gray-300 mb-2">Priority</label>
                         <select id="ticketPriority" class="w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg custom-input transition duration-200">
@@ -592,7 +548,6 @@
                         </select>
                     </div>
 
-                    <!-- Description -->
                     <div class="flex-grow">
                         <label for="ticketDescription" class="block text-sm font-medium text-gray-300 mb-2">Detailed Description</label>
                         <textarea id="ticketDescription" required rows="5"
@@ -601,14 +556,12 @@
                         ></textarea>
                     </div>
                     
-                    <!-- AI Refine Button -->
                     <button type="button" id="refineButton" onclick="refineDescription()"
                         class="w-full py-2 text-sm font-semibold text-white rounded-lg bg-purple-700 hover:bg-purple-800 transition duration-300 shadow-md disabled:opacity-50"
                     >
                         ✨ Refine Description (AI)
                     </button>
 
-                    <!-- Submit Button -->
                     <button type="button" id="submitTicketButton" onclick="submitTicket()"
                         class="custom-button w-full py-3 mt-4 text-lg font-semibold text-white rounded-lg shadow-lg uppercase tracking-wider"
                     >

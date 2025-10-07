@@ -4,18 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Staff Dashboard - Support Ticket System</title>
-    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load Firebase Libraries -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setLogLevel, collection, query, onSnapshot, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // IMPORTANT: Import all necessary functions from the central firebase.js
+        import { 
+            appId,
+            auth, 
+            db, 
+            onAuthStateChanged, 
+            signOut, 
+            collection, 
+            query, 
+            onSnapshot, 
+            updateDoc, 
+            doc, 
+            deleteDoc,
+            signInAnonymously,
+            signInWithCustomToken
+        } from './firebase.js';
 
         // Set up global access for Firebase instances and State
-        window.app = null;
-        window.db = null;
-        window.auth = null;
         window.userId = null;
         window.isAuthReady = false;
         
@@ -23,13 +31,6 @@
             allTickets: [],
             selectedTicket: null,
         };
-
-        setLogLevel('Debug');
-
-        // Global variables provided by the Canvas environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // --- Core Utility Functions ---
 
@@ -50,7 +51,7 @@
             });
         }
         
-        // --- Ticket Rendering and Selection ---
+        // --- Ticket Rendering and Selection (Unchanged) ---
 
         function getPriorityColor(priority) {
             switch(priority) {
@@ -84,7 +85,7 @@
                             <span class="text-xs font-bold px-3 py-1 rounded-full ${priorityClass}">${ticket.priority || 'N/A'}</span>
                         </div>
                         <p class="text-sm text-gray-400 mt-1">Status: <span class="text-emerald-300">${ticket.status}</span> | Customer: ${ticket.customer}</p>
-                        <p class="text-xs text-gray-500 mt-1">ID: ${ticket.id} | Opened: ${new Date(ticket.timestamp?.seconds * 1000).toLocaleString()}</p>
+                        <p class="text-xs text-gray-500 mt-1">ID: ${ticket.id} | Opened: ${ticket.timestamp?.seconds ? new Date(ticket.timestamp.seconds * 1000).toLocaleString() : 'Loading...'}</p>
                     </div>
                 `;
             }).join('');
@@ -108,13 +109,14 @@
             window.renderTickets(state.allTickets); // Re-render to highlight selection
         };
         
-        // --- Gemini API Call Logic ---
+        // --- Gemini API Call Logic (Unchanged) ---
         
         async function callGeminiApi(systemPrompt, userQuery, outputElementId) {
             const outputEl = document.getElementById(outputElementId);
             outputEl.value = 'Thinking...';
             outputEl.disabled = true;
             
+            // IMPORTANT: Replace this placeholder with your actual Gemini API Key
             const apiKey = "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
             
@@ -185,122 +187,106 @@
             callGeminiApi(systemPrompt, userQuery, 'aiOutput');
         };
 
-        // --- Firebase Initialization and Data Listener ---
+        // --- Firebase Initialization and Data Listener (Using imported functions) ---
 
-        if (firebaseConfig) {
-            window.app = initializeApp(firebaseConfig);
-            window.db = getFirestore(window.app);
-            window.auth = getAuth(window.app);
+        // Check for authenticated staff user upon loading
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                // If not logged in, redirect to staff login
+                window.location.href = 'staff_login.html';
+                return;
+            }
 
-            onAuthStateChanged(window.auth, async (user) => {
-                if (user) {
-                    window.userId = user.uid;
-                } else if (initialAuthToken) {
-                    try {
-                        await signInWithCustomToken(window.auth, initialAuthToken);
-                    } catch (error) {
-                        console.error("Custom Auth Sign-in Failed:", error);
-                        await signInAnonymously(window.auth);
-                    }
-                } else {
-                    await signInAnonymously(window.auth);
-                }
-                window.userId = window.auth.currentUser?.uid || 'staff-' + crypto.randomUUID();
-                window.isAuthReady = true;
+            // In a real environment, you would check the user's role here too, but
+            // staff_login.js already handles this on redirect.
+            window.userId = user.uid;
+            window.isAuthReady = true;
+            
+            document.getElementById('staffIdDisplay').textContent = 'ID: ' + window.userId;
+
+            // Start fetching tickets
+            const ticketsRef = collection(db, `artifacts/${appId}/public/data/tickets`);
+            const ticketsQuery = query(ticketsRef);
+
+            // Mock data for initial setup demonstration
+            const mockTickets = [
+                { id: 'TICKET-001', title: 'Login Button Missing on Mobile', priority: 'Critical', timestamp: { seconds: Date.now() / 1000 - 3600 }, status: 'Open', customer: 'Alice', description: "Since the last update, the main login button disappears completely when I view the site on my iPhone 15 Pro Max. I've tried clearing my cache, restarting my phone, and even switching browsers (Safari and Chrome), but nothing works. This is blocking all my work! It started happening immediately after the maintenance window last night. This is URGENT, I can't access my account and need to resolve this today.", category: 'Bug', customerId: 'mock-alice' },
+                { id: 'TICKET-002', title: 'Feature Request: Dark Mode', priority: 'Low', timestamp: { seconds: Date.now() / 1000 - 7200 }, status: 'Open', customer: 'Bob', description: "I love the new design, but my eyes are burning! Could you please add a proper dark mode toggle? It would make using the system late at night much more enjoyable. This isn't critical, but it would be a fantastic quality-of-life improvement. Thanks!", category: 'Feature', customerId: 'mock-bob' },
+                { id: 'TICKET-003', title: 'Password Reset Not Working', priority: 'High', timestamp: { seconds: Date.now() / 1000 - 10800 }, status: 'In Progress', customer: 'Charlie', description: "I tried resetting my password, but the reset link email never arrived. I checked my spam folder, and nothing. Can you manually reset it or check why the emails aren't sending? I am locked out of my account.", category: 'Account', customerId: 'mock-charlie' }
+            ];
+
+            onSnapshot(ticketsQuery, (snapshot) => {
+                let fetchedTickets = [];
+                snapshot.forEach((doc) => {
+                    fetchedTickets.push({ id: doc.id, ...doc.data() });
+                });
+
+                // If Firestore is empty, use mock data for demonstration purposes
+                state.allTickets = fetchedTickets.length > 0 ? fetchedTickets : mockTickets;
                 
-                document.getElementById('staffIdDisplay').textContent = 'ID: ' + window.userId;
+                // APPLY PRIORITY SORTING (KEY REQUIREMENT)
+                const sortedTickets = sortTickets(state.allTickets);
+                state.allTickets = sortedTickets; // Update state with sorted list
+                window.renderTickets(state.allTickets);
 
-                if (window.db && window.isAuthReady) {
-                    const ticketsRef = collection(window.db, `artifacts/${appId}/public/data/tickets`);
-                    const ticketsQuery = query(ticketsRef);
-
-                    // Mock data to ensure the UI and LLM features can be tested immediately
-                    const mockTickets = [
-                        { id: 'TICKET-001', title: 'Login Button Missing on Mobile', priority: 'Critical', timestamp: { seconds: Date.now() / 1000 - 3600 }, status: 'Open', customer: 'Alice', description: "Since the last update, the main login button disappears completely when I view the site on my iPhone 15 Pro Max. I've tried clearing my cache, restarting my phone, and even switching browsers (Safari and Chrome), but nothing works. This is blocking all my work! It started happening immediately after the maintenance window last night. This is URGENT, I can't access my account and need to resolve this today.", category: 'Bug' },
-                        { id: 'TICKET-002', title: 'Feature Request: Dark Mode', priority: 'Low', timestamp: { seconds: Date.now() / 1000 - 7200 }, status: 'Open', customer: 'Bob', description: "I love the new design, but my eyes are burning! Could you please add a proper dark mode toggle? It would make using the system late at night much more enjoyable. This isn't critical, but it would be a fantastic quality-of-life improvement. Thanks!", category: 'Feature' },
-                        { id: 'TICKET-003', title: 'Password Reset Not Working', priority: 'High', timestamp: { seconds: Date.now() / 1000 - 10800 }, status: 'In Progress', customer: 'Charlie', description: "I tried resetting my password, but the reset link email never arrived. I checked my spam folder, and nothing. Can you manually reset it or check why the emails aren't sending? I am locked out of my account.", category: 'Account' }
-                    ];
-
-                    onSnapshot(ticketsQuery, (snapshot) => {
-                        let fetchedTickets = [];
-                        snapshot.forEach((doc) => {
-                            fetchedTickets.push({ id: doc.id, ...doc.data() });
-                        });
-
-                        // If Firestore is empty, use mock data for demonstration purposes
-                        state.allTickets = fetchedTickets.length > 0 ? fetchedTickets : mockTickets;
-                        
-                        const sortedTickets = sortTickets(state.allTickets);
-                        state.allTickets = sortedTickets; // Update state with sorted list
-                        window.renderTickets(state.allTickets);
-
-                        // If the selected ticket was deleted or is still null, clear selection
-                        if (state.selectedTicket && !state.allTickets.find(t => t.id === state.selectedTicket.id)) {
-                            state.selectedTicket = null;
-                            window.selectTicket(null);
-                        } else if (state.selectedTicket) {
-                            // Re-select to refresh UI highlights
-                            window.renderTickets(state.allTickets);
-                        }
-                        
-                    }, (error) => {
-                        console.error("Error fetching tickets:", error);
-                        document.getElementById('ticketList').innerHTML = `<div class="p-4 bg-red-800 bg-opacity-50 rounded-lg border border-red-700"><p class="font-bold text-red-400">Error</p><p class="text-sm text-gray-400">Failed to fetch tickets from Firestore.</p></div>`;
-                    });
+                // Re-render/re-select logic (Unchanged)
+                if (state.selectedTicket && !state.allTickets.find(t => t.id === state.selectedTicket.id)) {
+                    state.selectedTicket = null;
+                    window.selectTicket(null);
+                } else if (state.selectedTicket) {
+                    window.renderTickets(state.allTickets);
                 }
+                
+            }, (error) => {
+                console.error("Error fetching tickets:", error);
+                document.getElementById('ticketList').innerHTML = `<div class="p-4 bg-red-800 bg-opacity-50 rounded-lg border border-red-700"><p class="font-bold text-red-400">Error</p><p class="text-sm text-gray-400">Failed to fetch tickets from Firestore.</p></div>`;
             });
-        }
+        });
         
-        // --- Placeholder functions for staff actions (Actual Firestore logic goes here) ---
+        // --- Staff Actions (Using imported functions) ---
         window.updateTicketStatus = async () => {
-            if (!state.selectedTicket || !window.db) return;
+            if (!state.selectedTicket || !db) return;
             
             const newStatus = document.getElementById('statusSelect').value;
             if (!newStatus) {
-                alert("Please select a new status."); // Using custom alert is recommended
+                alert("Please select a new status."); 
                 return;
             }
             
             try {
-                const ticketRef = doc(window.db, `artifacts/${appId}/public/data/tickets`, state.selectedTicket.id);
+                const ticketRef = doc(db, `artifacts/${appId}/public/data/tickets`, state.selectedTicket.id);
                 await updateDoc(ticketRef, { status: newStatus });
                 console.log(`Updated status for ${state.selectedTicket.id} to ${newStatus}`);
-                // UI will auto-update via onSnapshot
             } catch (error) {
                 console.error("Failed to update ticket status:", error);
             }
         };
 
         window.deleteSelectedTicket = async () => {
-            if (!state.selectedTicket || !window.db) return;
+            if (!state.selectedTicket || !db) return;
 
-            // In a real app, use a custom modal for confirmation
             if (!confirm(`Are you sure you want to permanently delete ticket ${state.selectedTicket.id}?`)) return;
 
             try {
-                const ticketRef = doc(window.db, `artifacts/${appId}/public/data/tickets`, state.selectedTicket.id);
+                const ticketRef = doc(db, `artifacts/${appId}/public/data/tickets`, state.selectedTicket.id);
                 await deleteDoc(ticketRef);
                 state.selectedTicket = null; // Clear selection locally
                 console.log(`Deleted ticket ${state.selectedTicket.id}`);
-                // UI will auto-update via onSnapshot
             } catch (error) {
                 console.error("Failed to delete ticket:", error);
             }
         };
 
         window.staffLogout = () => {
-            if (window.auth) {
-                signOut(window.auth).then(() => {
-                    window.location.href = 'staff-login.html'; // Redirect to login page
-                }).catch((error) => {
-                    console.error("Logout failed:", error);
-                });
-            } else {
-                 window.location.href = 'staff-login.html';
-            }
+            signOut(auth).then(() => {
+                window.location.href = 'staff_login.html'; // Redirect to login page
+            }).catch((error) => {
+                console.error("Logout failed:", error);
+            });
         };
     </script>
     <style>
+        /* ... (CSS Styles remain unchanged) ... */
         /* Custom font and body background (static gradient) */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
@@ -410,16 +396,13 @@
 </head>
 <body>
 
-    <!-- Main Dashboard Container -->
     <div class="flex flex-col h-screen w-full p-6 space-y-6">
 
-        <!-- Header and Profile/Logout Section -->
         <header class="flex justify-between items-center pb-4 border-b border-gray-700">
             <h1 class="main-title text-3xl md:text-4xl font-bold tracking-wider">
                 Staff Dashboard
             </h1>
             
-            <!-- Staff Profile and Logout -->
             <div class="flex items-center space-x-4">
                 <div class="text-right hidden sm:block">
                     <p class="font-semibold text-emerald-400">Staff User</p>
@@ -431,13 +414,10 @@
             </div>
         </header>
 
-        <!-- Functional Flow Title -->
         <h2 class="text-2xl font-light text-gray-300">Functional Flow: Ticket Management</h2>
 
-        <!-- Dashboard Content (Horizontal Divs / Grid) -->
         <div class="flex-grow grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-hidden">
 
-            <!-- 1. Tickets Queue (Main Area - 2/3 width on desktop) -->
             <div class="lg:col-span-2 xl:col-span-3 glass-card min-h-[50vh] flex flex-col">
                 <div class="glass-card-inner h-full flex flex-col">
                     <h3 class="text-xl md:text-2xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
@@ -447,9 +427,7 @@
                         Click on any ticket to select it and enable actions.
                     </p>
                     
-                    <!-- Container for dynamically loaded tickets -->
                     <div id="ticketList" class="space-y-3 overflow-y-auto flex-grow pr-2">
-                        <!-- Content rendered by renderTickets() function -->
                         <div class="p-4 bg-gray-800 bg-opacity-50 rounded-lg border border-gray-700 shadow-lg">
                             <p class="font-bold text-yellow-400">Fetching Tickets...</p>
                             <p class="text-sm text-gray-400">Connecting to Firestore and waiting for real-time data or mock data.</p>
@@ -458,7 +436,6 @@
                 </div>
             </div>
 
-            <!-- 2. Ticket Details & Actions (Sidebar - 1/3 width on desktop) -->
             <div class="lg:col-span-1 xl:col-span-1 glass-card min-h-[40vh]">
                 <div class="glass-card-inner h-full flex flex-col">
                     <h3 class="text-xl md:text-2xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
@@ -470,7 +447,6 @@
                             
                             <p class="font-semibold text-gray-300 mb-2">Selected Ticket: <span id="selectedTicketId" class="text-emerald-400">None</span></p>
                             
-                            <!-- Status Update Section -->
                             <label for="statusSelect" class="block text-sm font-medium text-gray-400 mb-2 mt-4">Update Status</label>
                             <select id="statusSelect" class="w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg custom-input transition duration-200">
                                 <option value="" disabled selected>-- Select New Status --</option>
@@ -485,14 +461,12 @@
                             
                             <hr class="border-gray-700 my-6">
 
-                            <!-- Delete Action -->
                             <button id="deleteTicketButton" onclick="deleteSelectedTicket()" class="w-full py-2 text-sm font-semibold rounded-lg bg-red-600 hover:bg-red-700 transition duration-200 shadow-md hover:shadow-lg disabled:opacity-50" disabled>
                                 Delete Ticket (Permanent)
                             </button>
                         </div>
                     </div>
                     
-                    <!-- 3. AI Assistant Section -->
                     <div class="space-y-4 mt-6">
                         <div class="p-4 bg-gray-800 bg-opacity-50 rounded-lg border border-gray-700">
                             <h4 id="aiTitle" class="text-lg font-bold text-emerald-300 mb-3">AI Assistant</h4>

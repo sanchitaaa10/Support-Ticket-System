@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Submit New Support Ticket</title>
-    <!-- Font loading -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
@@ -115,10 +113,8 @@
 </head>
 <body class="text-white">
 
-    <!-- Main container -->
     <div class="main-content-container flex flex-col items-center min-h-screen p-4 py-12">
 
-        <!-- Header Title -->
         <header class="text-center mb-10">
             <h1 class="main-title text-4xl md:text-5xl font-bold tracking-wider">
                 Support Ticket System
@@ -126,40 +122,34 @@
             <p class="text-gray-400 mt-3 text-lg">New Customer Support Request</p>
         </header>
 
-        <!-- Ticket Form Card -->
         <main class="glass-card w-full max-w-2xl rounded-2xl p-8 md:p-12">
             <form id="ticketForm" onsubmit="handleTicketSubmit(event)">
                 <h2 class="text-3xl font-semibold mb-8 text-center text-white">Submit a New Ticket</h2>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
-                    <!-- Username Input (Mirror Div) -->
                     <div class="md:col-span-1 input-mirror-card">
                         <label for="username" class="block text-gray-300 mb-2 font-medium">Username</label>
                         <input type="text" id="username" name="username" class="form-input"
                                placeholder="e.g., John Doe" required>
                     </div>
 
-                    <!-- Phone Number Input (Mirror Div) -->
                     <div class="md:col-span-1 input-mirror-card">
                         <label for="phone" class="block text-gray-300 mb-2 font-medium">Phone Number</label>
                         <input type="tel" id="phone" name="phone" class="form-input"
                                placeholder="(555) 123-4567" required>
                     </div>
 
-                    <!-- Email Input (Mirror Div - Spans 2 columns) -->
                     <div class="md:col-span-2 input-mirror-card">
                         <label for="email" class="block text-gray-300 mb-2 font-medium">Email Address</label>
                         <input type="email" id="email" name="email" class="form-input"
                                placeholder="you@clientcompany.com" required>
                     </div>
 
-                    <!-- Priority Dropdown (Mirror Div) -->
                     <div class="md:col-span-1 input-mirror-card">
                         <label for="priority" class="block text-gray-300 mb-2 font-medium">Issue Priority</label>
                         <select id="priority" name="priority" class="form-input form-select" required>
                             <option value="" disabled selected>Select Priority Level</option>
-                            <!-- Dropdown options must still have a dark background for readability -->
                             <option value="critical">Critical - System Down</option>
                             <option value="high">High - Severe Impact</option>
                             <option value="medium">Medium - Affects Workflow</option>
@@ -167,10 +157,8 @@
                         </select>
                     </div>
 
-                    <!-- Upload Document Option (Mirror Div) -->
                     <div class="md:col-span-1 input-mirror-card">
                         <label for="document" class="block text-gray-300 mb-2 font-medium">Attach Relevant File (Optional)</label>
-                        <!-- File input styling updated to be bg-transparent -->
                         <input type="file" id="document" name="document"
                                class="block w-full text-sm text-gray-400 bg-transparent
                                file:mr-4 file:py-2 file:px-4
@@ -182,14 +170,12 @@
                     </div>
                 </div>
 
-                <!-- Issue Description Textarea (Mirror Div - Spans 2 columns) -->
                 <div class="mb-8 relative mt-4 input-mirror-card md:col-span-2">
                     <label for="issue" class="block text-gray-300 mb-2 font-medium">Issue Description</label>
                     <textarea id="issue" name="issue" rows="6" class="form-input resize-none"
                               placeholder="Please describe the issue you are facing in detail, including steps to reproduce it." required></textarea>
                 </div>
                 
-                <!-- Submit Button (Indigo) -->
                 <button type="submit"
                         class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 shadow-lg shadow-indigo-600/20">
                     Submit Ticket
@@ -199,7 +185,6 @@
             <div id="messageBox" class="mt-6 p-4 rounded-lg text-center hidden"></div>
         </main>
         
-        <!-- Back to Home Link (Indigo) -->
         <footer class="mt-8 mb-4">
             <a href="index.html" class="text-indigo-400 hover:text-indigo-300 transition-colors">
                 &larr; Back to Staff Login
@@ -209,13 +194,13 @@
     </div>
 
     <script>
-        // Simple client-side handling for form submission
+        // Simple client-side handling for form submission (to be replaced by Firebase)
         function handleTicketSubmit(event) {
             event.preventDefault();
             const messageBox = document.getElementById('messageBox');
             
-            // In a real application, you would send this data to a server (e.g., Firebase Firestore)
-            console.log('Ticket Submission Attempted');
+            // In a real application, this is where you would call the Firebase addDoc function.
+            console.log('Ticket Submission Attempted (Non-Firebase Mock)');
             
             // Simulate success message
             messageBox.textContent = 'Success! Your ticket has been submitted and assigned a tracking ID. We will be in touch shortly.';
@@ -228,6 +213,6 @@
             }, 5000);
         }
     </script>
-
+<script type="module" src="./firebase.js"></script>
 </body>
 </html>

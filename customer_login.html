@@ -4,54 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Sign Up / Sign In - Support Ticket System</title>
-    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load Firebase Libraries -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Set up global access for Firebase instances
-        window.app = null;
-        window.db = null;
-        window.auth = null;
-        window.userId = null;
-        window.isAuthReady = false;
-
-        setLogLevel('Debug');
-
-        // Global variables provided by the Canvas environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        if (firebaseConfig) {
-            window.app = initializeApp(firebaseConfig);
-            window.db = getFirestore(window.app);
-            window.auth = getAuth(window.app);
-
-            // Handle initial authentication state
-            onAuthStateChanged(window.auth, async (user) => {
-                if (user) {
-                    window.userId = user.uid;
-                } else if (initialAuthToken) {
-                    try {
-                        await signInWithCustomToken(window.auth, initialAuthToken);
-                    } catch (error) {
-                        console.error("Custom Auth Sign-in Failed:", error);
-                        await signInAnonymously(window.auth);
-                    }
-                } else {
-                    // Fallback to anonymous sign-in if no token is available
-                    await signInAnonymously(window.auth);
-                }
-                window.userId = window.auth.currentUser?.uid || crypto.randomUUID();
-                window.isAuthReady = true;
-                console.log("Firebase Auth Ready. User ID:", window.userId);
-            });
-        }
-    </script>
+    
     <style>
         /* Custom font and body background (static gradient) */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
@@ -141,17 +95,14 @@
 </head>
 <body class="text-white">
 
-    <!-- Main container -->
     <div class="flex flex-col items-center justify-center min-h-screen p-4">
 
-        <!-- Header Title -->
         <header class="text-center mb-12">
             <h1 class="main-title text-4xl md:text-5xl font-bold tracking-wider">
                 Support Ticket System
             </h1>
         </header>
 
-        <!-- Glassmorphism Login Card -->
         <div class="glass-card w-full max-w-md mx-auto">
             <div class="glass-card-inner">
 
@@ -162,13 +113,12 @@
                     Create an account or log in to submit and track your support requests.
                 </p>
 
-                <form class="space-y-6">
+                <form id="customerAuthForm" class="space-y-6">
                     
-                    <!-- Username Input with AI Generator -->
                     <div class="space-y-2">
-                        <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                        <label for="displayName" class="block text-sm font-medium text-gray-300 mb-2">Username / Display Name</label>
                         <div class="flex space-x-2">
-                            <input type="text" id="username" name="username" required
+                            <input type="text" id="displayName" name="displayName" required
                                 placeholder="Choose a username"
                                 class="custom-input flex-grow p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg transition duration-200 focus:ring-4 focus:ring-opacity-50"
                             >
@@ -181,7 +131,6 @@
                         </div>
                     </div>
                     
-                    <!-- Email Input -->
                     <div>
                         <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
                         <input type="email" id="email" name="email" required
@@ -190,7 +139,6 @@
                         >
                     </div>
 
-                    <!-- Password Input -->
                     <div>
                         <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
                         <input type="password" id="password" name="password" required
@@ -199,15 +147,25 @@
                         >
                     </div>
 
-                    <!-- Login Button -->
-                    <button type="submit"
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-gray-400">Mode: </span>
+                        <div class="inline-flex rounded-md shadow-sm">
+                            <button type="button" id="toggleSignUp" class="px-3 py-1 text-sm font-medium rounded-l-lg bg-emerald-700 text-white">
+                                Sign Up
+                            </button>
+                            <button type="button" id="toggleSignIn" class="px-3 py-1 text-sm font-medium rounded-r-lg bg-gray-700 text-gray-400 hover:bg-gray-600">
+                                Sign In
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" id="authSubmitButton"
                         class="custom-button w-full py-3 mt-8 text-lg font-semibold text-white rounded-lg shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-yellow-500 focus:ring-opacity-50 uppercase tracking-wider"
                     >
-                        Sign Up / Sign In
+                        Create Account
                     </button>
                 </form>
 
-                <!-- Back to Home Link -->
                 <div class="mt-8 text-center">
                     <a href="index.html" class="text-gray-400 hover:text-green-400 transition duration-200 text-sm">
                         ← Back to Home Selection
@@ -218,7 +176,6 @@
         </div>
     </div>
 
-    <!-- Modal for Prompt Input (Hidden by default) -->
     <div id="promptModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 transition-opacity duration-300">
         <div class="glass-card w-full max-w-sm transform transition-transform duration-300 scale-95 opacity-0" id="modalContent">
             <div class="glass-card-inner">
@@ -252,7 +209,7 @@
                 modal.style.opacity = '1';
                 content.classList.remove('scale-95', 'opacity-0');
                 content.classList.add('scale-100', 'opacity-100');
-            }, 10); // small delay to trigger transition
+            }, 10);
         }
 
         function hidePromptModal() {
@@ -266,13 +223,13 @@
                 document.getElementById('loadingIndicator').classList.add('hidden');
                 document.getElementById('errorMessage').classList.add('hidden');
                 document.getElementById('submitPromptButton').disabled = false;
-            }, 300); // match transition duration
+            }, 300);
         }
 
-        // --- Gemini API Call Logic ---
+        // --- Gemini API Call Logic (Note: apiKey must be provided here in a real environment) ---
         async function generateUsernameIdea() {
             const promptInput = document.getElementById('usernamePrompt');
-            const usernameInput = document.getElementById('username');
+            const usernameInput = document.getElementById('displayName');
             const loading = document.getElementById('loadingIndicator');
             const errorMsg = document.getElementById('errorMessage');
             const submitButton = document.getElementById('submitPromptButton');
@@ -293,6 +250,7 @@
             const systemPrompt = "You are a creative username generator. Based on the user's idea, generate ONE unique, single-word or hyphenated username that sounds good for a support ticket system user. The username must contain only letters, numbers, or hyphens, and be concise. Do not include any explanations, prefixes, or suffixes, just the raw username.";
             const userQuery = `Generate a username idea based on this theme: "${userPrompt}"`;
             
+            // IMPORTANT: Replace this placeholder with your actual Gemini API Key
             const apiKey = "";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
             
@@ -318,10 +276,7 @@
                     const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
                     
                     if (generatedText) {
-                        // Clean the text to ensure it is a simple username
                         let suggestedUsername = generatedText.replace(/[^a-zA-Z0-9-]/g, '').trim();
-                        
-                        // Fallback/cleanup: if the model is being weird, just take the first word.
                         if (suggestedUsername.length > 30) {
                             suggestedUsername = suggestedUsername.split(/\s|\-/)[0];
                         }
@@ -330,17 +285,15 @@
                         hidePromptModal();
                         loading.classList.add('hidden');
                         submitButton.disabled = false;
-                        return; // Success
+                        return;
                     } else {
                         throw new Error("Invalid response structure from API.");
                     }
                 } catch (error) {
                     console.error(`Attempt ${i + 1} failed:`, error);
                     if (i < MAX_RETRIES - 1) {
-                        // Wait for exponential backoff before retrying
                         await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
                     } else {
-                        // Last attempt failed
                         loading.classList.add('hidden');
                         errorMsg.textContent = "Error generating username. Please try again later.";
                         errorMsg.classList.remove('hidden');
@@ -350,5 +303,6 @@
             }
         }
     </script>
+    <script type="module" src="sign_up.js"></script>
 </body>
 </html>
