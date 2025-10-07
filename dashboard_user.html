@@ -242,11 +242,13 @@
             }
             
             window.userId = currentUserId;
-            window.customerName = user.displayName || ('User-' + window.userId.substring(0, 8)); // Use actual display name
+            // This is the line that uses the display name set during signup
+            window.customerName = user.displayName || ('User-' + window.userId.substring(0, 8)); 
             window.isAuthReady = true;
             
-            // Update welcome message
+            // Update welcome message (Large Text)
             document.getElementById('welcomeName').textContent = window.customerName;
+            // Update customer ID (Small Text)
             document.getElementById('customerIdDisplay').textContent = window.userId;
 
 
