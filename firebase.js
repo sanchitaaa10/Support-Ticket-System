@@ -12,7 +12,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { 
   getFirestore, 
-  doc, // <--- EXPLICITLY IMPORTED
+  doc, 
   setDoc, 
   getDoc, 
   addDoc, 
@@ -24,11 +24,11 @@ import {
   getDocs, 
   onSnapshot, 
   serverTimestamp,
-  deleteDoc // <--- EXPLICITLY IMPORTED
+  deleteDoc 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 
-// ==================== CONFIGURATION ====================
+
 const firebaseConfig = {
   apiKey: "AIzaSyDGTJtFqWov20YSEAjtj3nH6a3TikoWawY",
   authDomain: "support-ticket-system-e467d.firebaseapp.com",
@@ -39,7 +39,8 @@ const firebaseConfig = {
   measurementId: "G-4WX6VXQ1WT"
 };
 
-// ==================== INITIALIZE APP ====================
+
+
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const auth = getAuth(app);
@@ -48,7 +49,7 @@ const db = getFirestore(app);
 // Global variables (optional)
 const appId = firebaseConfig.appId;
 
-// ==================== EXPORTS (ENSURING ALL FUNCTIONS ARE AVAILABLE) ====================
+
 export {
   app,
   auth,
