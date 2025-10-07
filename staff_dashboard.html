@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Dashboard - Support Ticket System</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Firebase Libraries -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setLogLevel, collection, query, onSnapshot, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set up global access for Firebase instances and State
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = null;
+        window.isAuthReady = false;
+        
+        const state = {
+            allTickets: [],
+            selectedTicket: null,
+        };
+
+        setLogLevel('Debug');
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // --- Core Utility Functions ---
+
+        // Simple Priority Queue/Sorting Logic (Client-side implementation)
+        const priorityMap = { 'Critical': 1, 'High': 2, 'Medium': 3, 'Low': 4 };
+        
+        function sortTickets(tickets) {
+            // Sort by Priority (lowest number is highest priority), then by Timestamp (oldest first)
+            return tickets.sort((a, b) => {
+                const priorityA = priorityMap[a.priority] || 99;
+                const priorityB = priorityMap[b.priority] || 99;
+                
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                // Fallback to timestamp if priorities are equal (oldest first)
+                return (a.timestamp?.seconds || 0) - (b.timestamp?.seconds || 0);
+            });
+        }
+        
+        // --- Ticket Rendering and Selection ---
+
+        function getPriorityColor(priority) {
+            switch(priority) {
+                case 'Critical': return 'bg-red-700 text-red-100';
+                case 'High': return 'bg-yellow-600 text-yellow-100';
+                case 'Medium': return 'bg-green-600 text-green-100';
+                case 'Low': return 'bg-blue-600 text-blue-100';
+                default: return 'bg-gray-600 text-gray-300';
+            }
+        }
+        
+        window.renderTickets = (tickets) => {
+            const ticketListEl = document.getElementById('ticketList');
+            if (tickets.length === 0) {
+                ticketListEl.innerHTML = `
+                    <div class="p-6 text-center text-gray-500">No open tickets in the queue. Great job!</div>
+                `;
+                return;
+            }
+
+            const html = tickets.map(ticket => {
+                const isSelected = state.selectedTicket && state.selectedTicket.id === ticket.id;
+                const priorityClass = getPriorityColor(ticket.priority);
+                
+                return `
+                    <div class="p-4 rounded-lg shadow-xl cursor-pointer transition duration-150 ease-in-out 
+                        ${isSelected ? 'border-4 border-emerald-400 scale-[1.02]' : 'bg-gray-800 bg-opacity-70 border border-gray-700 hover:bg-gray-700'}
+                    " onclick="selectTicket('${ticket.id}')">
+                        <div class="flex justify-between items-start">
+                            <h4 class="text-lg font-semibold truncate text-white">${ticket.title}</h4>
+                            <span class="text-xs font-bold px-3 py-1 rounded-full ${priorityClass}">${ticket.priority || 'N/A'}</span>
+                        </div>
+                        <p class="text-sm text-gray-400 mt-1">Status: <span class="text-emerald-300">${ticket.status}</span> | Customer: ${ticket.customer}</p>
+                        <p class="text-xs text-gray-500 mt-1">ID: ${ticket.id} | Opened: ${new Date(ticket.timestamp?.seconds * 1000).toLocaleString()}</p>
+                    </div>
+                `;
+            }).join('');
+            
+            ticketListEl.innerHTML = html;
+        };
+
+        window.selectTicket = (ticketId) => {
+            state.selectedTicket = state.allTickets.find(t => t.id === ticketId);
+            
+            // Update UI elements
+            document.getElementById('selectedTicketId').textContent = state.selectedTicket ? state.selectedTicket.id : 'None';
+            document.getElementById('updateStatusButton').disabled = !state.selectedTicket;
+            document.getElementById('deleteTicketButton').disabled = !state.selectedTicket;
+            document.getElementById('summarizeButton').disabled = !state.selectedTicket;
+            document.getElementById('draftButton').disabled = !state.selectedTicket;
+            
+            document.getElementById('aiOutput').value = ''; // Clear previous AI output
+            document.getElementById('aiTitle').textContent = state.selectedTicket ? `Ticket: ${state.selectedTicket.id}` : 'AI Assistant';
+
+            window.renderTickets(state.allTickets); // Re-render to highlight selection
+        };
+        
+        // --- Gemini API Call Logic ---
+        
+        async function callGeminiApi(systemPrompt, userQuery, outputElementId) {
+            const outputEl = document.getElementById(outputElementId);
+            outputEl.value = 'Thinking...';
+            outputEl.disabled = true;
+            
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            const MAX_RETRIES = 3;
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (generatedText) {
+                        outputEl.value = generatedText;
+                        outputEl.disabled = false;
+                        return; // Success
+                    } else {
+                        throw new Error("Invalid response structure from API.");
+                    }
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed:`, error);
+                    if (i < MAX_RETRIES - 1) {
+                        // Wait for exponential backoff before retrying
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                    } else {
+                        outputEl.value = "AI Error: Could not generate response. Check console for details.";
+                        outputEl.disabled = false;
+                    }
+                }
+            }
+        }
+
+        window.summarizeTicket = () => {
+            if (!state.selectedTicket) return;
+            const description = state.selectedTicket.description || 'No description provided.';
+            
+            const systemPrompt = "You are a specialized summarization engine for support tickets. Provide a concise, professional, single-paragraph summary of the following customer issue. Focus only on the core problem and urgency.";
+            const userQuery = `Summarize this support ticket description:\n\n${description}`;
+            
+            callGeminiApi(systemPrompt, userQuery, 'aiOutput');
+        };
+
+        window.draftResponse = () => {
+            if (!state.selectedTicket) return;
+            const status = document.getElementById('statusSelect').value;
+            const description = state.selectedTicket.description || 'No description provided.';
+
+            if (!status) {
+                document.getElementById('aiOutput').value = "Please select a new status (e.g., Resolved, In Progress) before drafting a response.";
+                return;
+            }
+
+            const systemPrompt = "You are a professional support agent. Draft a polite, helpful, and concise initial response to the customer based on the provided ticket and the intended status change. Use a warm, yet professional tone.";
+            const userQuery = `Draft an initial response for a ticket with the description: "${description}". The intended status update is: "${status}".`;
+            
+            callGeminiApi(systemPrompt, userQuery, 'aiOutput');
+        };
+
+        // --- Firebase Initialization and Data Listener ---
+
+        if (firebaseConfig) {
+            window.app = initializeApp(firebaseConfig);
+            window.db = getFirestore(window.app);
+            window.auth = getAuth(window.app);
+
+            onAuthStateChanged(window.auth, async (user) => {
+                if (user) {
+                    window.userId = user.uid;
+                } else if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(window.auth, initialAuthToken);
+                    } catch (error) {
+                        console.error("Custom Auth Sign-in Failed:", error);
+                        await signInAnonymously(window.auth);
+                    }
+                } else {
+                    await signInAnonymously(window.auth);
+                }
+                window.userId = window.auth.currentUser?.uid || 'staff-' + crypto.randomUUID();
+                window.isAuthReady = true;
+                
+                document.getElementById('staffIdDisplay').textContent = 'ID: ' + window.userId;
+
+                if (window.db && window.isAuthReady) {
+                    const ticketsRef = collection(window.db, `artifacts/${appId}/public/data/tickets`);
+                    const ticketsQuery = query(ticketsRef);
+
+                    // Mock data to ensure the UI and LLM features can be tested immediately
+                    const mockTickets = [
+                        { id: 'TICKET-001', title: 'Login Button Missing on Mobile', priority: 'Critical', timestamp: { seconds: Date.now() / 1000 - 3600 }, status: 'Open', customer: 'Alice', description: "Since the last update, the main login button disappears completely when I view the site on my iPhone 15 Pro Max. I've tried clearing my cache, restarting my phone, and even switching browsers (Safari and Chrome), but nothing works. This is blocking all my work! It started happening immediately after the maintenance window last night. This is URGENT, I can't access my account and need to resolve this today.", category: 'Bug' },
+                        { id: 'TICKET-002', title: 'Feature Request: Dark Mode', priority: 'Low', timestamp: { seconds: Date.now() / 1000 - 7200 }, status: 'Open', customer: 'Bob', description: "I love the new design, but my eyes are burning! Could you please add a proper dark mode toggle? It would make using the system late at night much more enjoyable. This isn't critical, but it would be a fantastic quality-of-life improvement. Thanks!", category: 'Feature' },
+                        { id: 'TICKET-003', title: 'Password Reset Not Working', priority: 'High', timestamp: { seconds: Date.now() / 1000 - 10800 }, status: 'In Progress', customer: 'Charlie', description: "I tried resetting my password, but the reset link email never arrived. I checked my spam folder, and nothing. Can you manually reset it or check why the emails aren't sending? I am locked out of my account.", category: 'Account' }
+                    ];
+
+                    onSnapshot(ticketsQuery, (snapshot) => {
+                        let fetchedTickets = [];
+                        snapshot.forEach((doc) => {
+                            fetchedTickets.push({ id: doc.id, ...doc.data() });
+                        });
+
+                        // If Firestore is empty, use mock data for demonstration purposes
+                        state.allTickets = fetchedTickets.length > 0 ? fetchedTickets : mockTickets;
+                        
+                        const sortedTickets = sortTickets(state.allTickets);
+                        state.allTickets = sortedTickets; // Update state with sorted list
+                        window.renderTickets(state.allTickets);
+
+                        // If the selected ticket was deleted or is still null, clear selection
+                        if (state.selectedTicket && !state.allTickets.find(t => t.id === state.selectedTicket.id)) {
+                            state.selectedTicket = null;
+                            window.selectTicket(null);
+                        } else if (state.selectedTicket) {
+                            // Re-select to refresh UI highlights
+                            window.renderTickets(state.allTickets);
+                        }
+                        
+                    }, (error) => {
+                        console.error("Error fetching tickets:", error);
+                        document.getElementById('ticketList').innerHTML = `<div class="p-4 bg-red-800 bg-opacity-50 rounded-lg border border-red-700"><p class="font-bold text-red-400">Error</p><p class="text-sm text-gray-400">Failed to fetch tickets from Firestore.</p></div>`;
+                    });
+                }
+            });
+        }
+        
+        // --- Placeholder functions for staff actions (Actual Firestore logic goes here) ---
+        window.updateTicketStatus = async () => {
+            if (!state.selectedTicket || !window.db) return;
+            
+            const newStatus = document.getElementById('statusSelect').value;
+            if (!newStatus) {
+                alert("Please select a new status."); // Using custom alert is recommended
+                return;
+            }
+            
+            try {
+                const ticketRef = doc(window.db, `artifacts/${appId}/public/data/tickets`, state.selectedTicket.id);
+                await updateDoc(ticketRef, { status: newStatus });
+                console.log(`Updated status for ${state.selectedTicket.id} to ${newStatus}`);
+                // UI will auto-update via onSnapshot
+            } catch (error) {
+                console.error("Failed to update ticket status:", error);
+            }
+        };
+
+        window.deleteSelectedTicket = async () => {
+            if (!state.selectedTicket || !window.db) return;
+
+            // In a real app, use a custom modal for confirmation
+            if (!confirm(`Are you sure you want to permanently delete ticket ${state.selectedTicket.id}?`)) return;
+
+            try {
+                const ticketRef = doc(window.db, `artifacts/${appId}/public/data/tickets`, state.selectedTicket.id);
+                await deleteDoc(ticketRef);
+                state.selectedTicket = null; // Clear selection locally
+                console.log(`Deleted ticket ${state.selectedTicket.id}`);
+                // UI will auto-update via onSnapshot
+            } catch (error) {
+                console.error("Failed to delete ticket:", error);
+            }
+        };
+
+        window.staffLogout = () => {
+            if (window.auth) {
+                signOut(window.auth).then(() => {
+                    window.location.href = 'staff-login.html'; // Redirect to login page
+                }).catch((error) => {
+                    console.error("Logout failed:", error);
+                });
+            } else {
+                 window.location.href = 'staff-login.html';
+            }
+        };
+    </script>
+    <style>
+        /* Custom font and body background (static gradient) */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Static dark gradient background */
+            background: #111827;
+            background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        /* Styling for the main header title glow */
+        .main-title {
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.5), /* Emerald glow */
+                         0 0 20px rgba(245, 158, 11, 0.5); /* Amber glow */
+        }
+
+        /* Glass Card Base Styles */
+        .glass-card {
+            position: relative;
+            background: rgba(31, 41, 55, 0.75);
+            backdrop-filter: blur(15px);
+            border-radius: 1.2rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            overflow: hidden;
+            height: 100%; /* Important for grid layout */
+        }
+
+        /* Static Gradient Border */
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            width: calc(100% + 4px);
+            height: calc(100% + 4px);
+            /* Emerald to Amber static gradient */
+            background: linear-gradient(45deg, #10b981, #f59e0b);
+            border-radius: 1.2rem;
+            z-index: -1;
+            opacity: 0.8;
+        }
+
+        /* Inner card background for better readability */
+        .glass-card-inner {
+            padding: 1.5rem;
+            background: rgba(17, 24, 39, 0.85);
+            border-radius: 1.2rem;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Button style using the theme gradient */
+        .custom-button {
+            background-image: linear-gradient(to right, #10b981, #f59e0b);
+            transition: all 0.3s ease;
+        }
+        .custom-button:hover:not(:disabled) {
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+            transform: translateY(-1px);
+        }
+        .custom-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-image: none;
+            background-color: #374151; /* Dark gray for disabled */
+        }
+
+        /* Input/Select field custom focus style */
+        .custom-input {
+            color: white;
+        }
+        .custom-input:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5);
+        }
+
+        /* Custom style for the select dropdown arrow color (Tailwind overrides this often) */
+        select.custom-input {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236B7280'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd' /%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em 1.5em;
+        }
+        
+        /* Textarea style */
+        #aiOutput {
+            min-height: 150px;
+            resize: none;
+            background-color: rgba(31, 41, 55, 0.7);
+            border-color: #4B5563;
+        }
+
+        .ai-action-button {
+            transition: all 0.2s ease;
+        }
+        .ai-action-button:hover:not(:disabled) {
+            background-color: #065F46; /* dark emerald */
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Main Dashboard Container -->
+    <div class="flex flex-col h-screen w-full p-6 space-y-6">
+
+        <!-- Header and Profile/Logout Section -->
+        <header class="flex justify-between items-center pb-4 border-b border-gray-700">
+            <h1 class="main-title text-3xl md:text-4xl font-bold tracking-wider">
+                Staff Dashboard
+            </h1>
+            
+            <!-- Staff Profile and Logout -->
+            <div class="flex items-center space-x-4">
+                <div class="text-right hidden sm:block">
+                    <p class="font-semibold text-emerald-400">Staff User</p>
+                    <p id="staffIdDisplay" class="text-xs text-gray-400 truncate w-32">ID: Loading...</p>
+                </div>
+                <button onclick="staffLogout()" class="custom-button px-4 py-2 text-sm rounded-full font-semibold">
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Functional Flow Title -->
+        <h2 class="text-2xl font-light text-gray-300">Functional Flow: Ticket Management</h2>
+
+        <!-- Dashboard Content (Horizontal Divs / Grid) -->
+        <div class="flex-grow grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-hidden">
+
+            <!-- 1. Tickets Queue (Main Area - 2/3 width on desktop) -->
+            <div class="lg:col-span-2 xl:col-span-3 glass-card min-h-[50vh] flex flex-col">
+                <div class="glass-card-inner h-full flex flex-col">
+                    <h3 class="text-xl md:text-2xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
+                        Tickets Queue (Priority Sorted)
+                    </h3>
+                    <p class="text-sm text-gray-500 mb-4">
+                        Click on any ticket to select it and enable actions.
+                    </p>
+                    
+                    <!-- Container for dynamically loaded tickets -->
+                    <div id="ticketList" class="space-y-3 overflow-y-auto flex-grow pr-2">
+                        <!-- Content rendered by renderTickets() function -->
+                        <div class="p-4 bg-gray-800 bg-opacity-50 rounded-lg border border-gray-700 shadow-lg">
+                            <p class="font-bold text-yellow-400">Fetching Tickets...</p>
+                            <p class="text-sm text-gray-400">Connecting to Firestore and waiting for real-time data or mock data.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Ticket Details & Actions (Sidebar - 1/3 width on desktop) -->
+            <div class="lg:col-span-1 xl:col-span-1 glass-card min-h-[40vh]">
+                <div class="glass-card-inner h-full flex flex-col">
+                    <h3 class="text-xl md:text-2xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
+                        Ticket Actions
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div class="p-4 bg-gray-800 bg-opacity-50 rounded-lg border border-gray-700">
+                            
+                            <p class="font-semibold text-gray-300 mb-2">Selected Ticket: <span id="selectedTicketId" class="text-emerald-400">None</span></p>
+                            
+                            <!-- Status Update Section -->
+                            <label for="statusSelect" class="block text-sm font-medium text-gray-400 mb-2 mt-4">Update Status</label>
+                            <select id="statusSelect" class="w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg custom-input transition duration-200">
+                                <option value="" disabled selected>-- Select New Status --</option>
+                                <option value="Open">Open</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Awaiting Customer">Awaiting Customer</option>
+                                <option value="Resolved">Resolved</option>
+                            </select>
+                            <button id="updateStatusButton" onclick="updateTicketStatus()" class="custom-button w-full py-2 mt-3 text-sm font-semibold rounded-lg" disabled>
+                                Update Status
+                            </button>
+                            
+                            <hr class="border-gray-700 my-6">
+
+                            <!-- Delete Action -->
+                            <button id="deleteTicketButton" onclick="deleteSelectedTicket()" class="w-full py-2 text-sm font-semibold rounded-lg bg-red-600 hover:bg-red-700 transition duration-200 shadow-md hover:shadow-lg disabled:opacity-50" disabled>
+                                Delete Ticket (Permanent)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 3. AI Assistant Section -->
+                    <div class="space-y-4 mt-6">
+                        <div class="p-4 bg-gray-800 bg-opacity-50 rounded-lg border border-gray-700">
+                            <h4 id="aiTitle" class="text-lg font-bold text-emerald-300 mb-3">AI Assistant</h4>
+
+                            <div class="flex space-x-2 mb-4">
+                                <button id="summarizeButton" onclick="summarizeTicket()"
+                                    class="ai-action-button w-1/2 py-2 text-xs font-semibold rounded-lg bg-emerald-700 text-white disabled:opacity-50" disabled>
+                                    ✨ Summarize Ticket
+                                </button>
+                                <button id="draftButton" onclick="draftResponse()"
+                                    class="ai-action-button w-1/2 py-2 text-xs font-semibold rounded-lg bg-emerald-700 text-white disabled:opacity-50" disabled>
+                                    ✨ Draft Response
+                                </button>
+                            </div>
+
+                            <textarea id="aiOutput" placeholder="AI analysis or drafted response will appear here..." 
+                                class="w-full p-3 border rounded-lg custom-input text-sm" disabled></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

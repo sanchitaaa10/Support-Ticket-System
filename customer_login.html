@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Sign Up / Sign In - Support Ticket System</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Firebase Libraries -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set up global access for Firebase instances
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = null;
+        window.isAuthReady = false;
+
+        setLogLevel('Debug');
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        if (firebaseConfig) {
+            window.app = initializeApp(firebaseConfig);
+            window.db = getFirestore(window.app);
+            window.auth = getAuth(window.app);
+
+            // Handle initial authentication state
+            onAuthStateChanged(window.auth, async (user) => {
+                if (user) {
+                    window.userId = user.uid;
+                } else if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(window.auth, initialAuthToken);
+                    } catch (error) {
+                        console.error("Custom Auth Sign-in Failed:", error);
+                        await signInAnonymously(window.auth);
+                    }
+                } else {
+                    // Fallback to anonymous sign-in if no token is available
+                    await signInAnonymously(window.auth);
+                }
+                window.userId = window.auth.currentUser?.uid || crypto.randomUUID();
+                window.isAuthReady = true;
+                console.log("Firebase Auth Ready. User ID:", window.userId);
+            });
+        }
+    </script>
+    <style>
+        /* Custom font and body background (static gradient) */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Static dark gradient background */
+            background: #111827; /* Darkest primary color */
+            background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Styling for the main header title glow */
+        .main-title {
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.5), /* Emerald glow */
+                         0 0 20px rgba(245, 158, 11, 0.5); /* Amber glow */
+        }
+
+        /* Glass Card Base Styles (same as staff login) */
+        .glass-card {
+            position: relative;
+            background: rgba(31, 41, 55, 0.75); /* Darker glass background */
+            backdrop-filter: blur(15px);
+            border-radius: 1.2rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            overflow: hidden; /* important for the pseudo-element glow */
+        }
+
+        /* Static Gradient Border (instead of animation) */
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            width: calc(100% + 4px);
+            height: calc(100% + 4px);
+            /* Emerald to Amber static gradient */
+            background: linear-gradient(45deg, #10b981, #f59e0b);
+            border-radius: 1.2rem;
+            z-index: -1;
+            opacity: 0.8;
+        }
+
+        /* Inner card background for better readability */
+        .glass-card-inner {
+            padding: 2.5rem;
+            background: rgba(17, 24, 39, 0.85); /* Slightly opaque inner layer */
+            border-radius: 1.2rem;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Input field custom focus style */
+        .custom-input:focus {
+            outline: none;
+            border-color: #10b981; /* Emerald border on focus */
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5); /* Emerald glow on focus */
+        }
+
+        /* Button style using the theme gradient */
+        .custom-button {
+            background-image: linear-gradient(to right, #10b981, #f59e0b);
+            transition: all 0.3s ease;
+        }
+        .custom-button:hover {
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); /* Amber shadow on hover */
+            transform: translateY(-2px);
+        }
+        /* Style for the AI button */
+        .ai-button {
+            background-image: linear-gradient(to right, #10b981, #f59e0b);
+            color: white;
+            padding: 0.75rem 1rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease-in-out;
+        }
+        .ai-button:hover {
+            opacity: 0.9;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+        }
+
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- Main container -->
+    <div class="flex flex-col items-center justify-center min-h-screen p-4">
+
+        <!-- Header Title -->
+        <header class="text-center mb-12">
+            <h1 class="main-title text-4xl md:text-5xl font-bold tracking-wider">
+                Support Ticket System
+            </h1>
+        </header>
+
+        <!-- Glassmorphism Login Card -->
+        <div class="glass-card w-full max-w-md mx-auto">
+            <div class="glass-card-inner">
+
+                <h2 class="text-3xl font-extrabold text-white mb-6 text-center">
+                    Customer Sign Up / Sign In
+                </h2>
+                <p class="text-gray-400 text-center mb-8">
+                    Create an account or log in to submit and track your support requests.
+                </p>
+
+                <form class="space-y-6">
+                    
+                    <!-- Username Input with AI Generator -->
+                    <div class="space-y-2">
+                        <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="username" name="username" required
+                                placeholder="Choose a username"
+                                class="custom-input flex-grow p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg transition duration-200 focus:ring-4 focus:ring-opacity-50"
+                            >
+                            <button type="button" id="generateUsernameButton" onclick="showPromptModal()"
+                                class="ai-button whitespace-nowrap text-sm"
+                                title="Generate Username Idea using AI"
+                            >
+                                ✨ Idea
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Email Input -->
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
+                        <input type="email" id="email" name="email" required
+                            placeholder="you@example.com"
+                            class="custom-input w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg transition duration-200 focus:ring-4 focus:ring-opacity-50"
+                        >
+                    </div>
+
+                    <!-- Password Input -->
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                        <input type="password" id="password" name="password" required
+                            placeholder="Minimum 8 characters"
+                            class="custom-input w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg transition duration-200 focus:ring-4 focus:ring-opacity-50"
+                        >
+                    </div>
+
+                    <!-- Login Button -->
+                    <button type="submit"
+                        class="custom-button w-full py-3 mt-8 text-lg font-semibold text-white rounded-lg shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-yellow-500 focus:ring-opacity-50 uppercase tracking-wider"
+                    >
+                        Sign Up / Sign In
+                    </button>
+                </form>
+
+                <!-- Back to Home Link -->
+                <div class="mt-8 text-center">
+                    <a href="index.html" class="text-gray-400 hover:text-green-400 transition duration-200 text-sm">
+                        ← Back to Home Selection
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Prompt Input (Hidden by default) -->
+    <div id="promptModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="glass-card w-full max-w-sm transform transition-transform duration-300 scale-95 opacity-0" id="modalContent">
+            <div class="glass-card-inner">
+                <h3 class="text-xl font-bold mb-4">✨ AI Username Idea Generator</h3>
+                <p class="text-gray-400 text-sm mb-4">What kind of username are you looking for? (e.g., "Something based on sci-fi," "A name for a hiking enthusiast")</p>
+                <input type="text" id="usernamePrompt" placeholder="Enter idea keywords..." class="custom-input w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg mb-4">
+                
+                <button type="button" id="submitPromptButton" onclick="generateUsernameIdea()"
+                    class="custom-button w-full py-2 text-md font-semibold text-white rounded-lg shadow-lg hover:shadow-xl transition duration-200 uppercase tracking-wider mb-2"
+                >
+                    Generate Idea
+                </button>
+                <button type="button" onclick="hidePromptModal()"
+                    class="w-full py-2 text-sm text-gray-400 bg-transparent hover:text-white transition duration-200"
+                >
+                    Cancel
+                </button>
+                <p id="loadingIndicator" class="text-center text-sm text-yellow-400 mt-4 hidden">Generating idea...</p>
+                <p id="errorMessage" class="text-center text-sm text-red-400 mt-4 hidden">An error occurred. Please try again.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Modal Control Functions ---
+        function showPromptModal() {
+            const modal = document.getElementById('promptModal');
+            const content = document.getElementById('modalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.style.opacity = '1';
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10); // small delay to trigger transition
+        }
+
+        function hidePromptModal() {
+            const modal = document.getElementById('promptModal');
+            const content = document.getElementById('modalContent');
+            modal.style.opacity = '0';
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('loadingIndicator').classList.add('hidden');
+                document.getElementById('errorMessage').classList.add('hidden');
+                document.getElementById('submitPromptButton').disabled = false;
+            }, 300); // match transition duration
+        }
+
+        // --- Gemini API Call Logic ---
+        async function generateUsernameIdea() {
+            const promptInput = document.getElementById('usernamePrompt');
+            const usernameInput = document.getElementById('username');
+            const loading = document.getElementById('loadingIndicator');
+            const errorMsg = document.getElementById('errorMessage');
+            const submitButton = document.getElementById('submitPromptButton');
+            
+            errorMsg.classList.add('hidden');
+            submitButton.disabled = true;
+
+            const userPrompt = promptInput.value.trim();
+            if (!userPrompt) {
+                errorMsg.textContent = "Please enter an idea to generate a username.";
+                errorMsg.classList.remove('hidden');
+                submitButton.disabled = false;
+                return;
+            }
+
+            loading.classList.remove('hidden');
+            
+            const systemPrompt = "You are a creative username generator. Based on the user's idea, generate ONE unique, single-word or hyphenated username that sounds good for a support ticket system user. The username must contain only letters, numbers, or hyphens, and be concise. Do not include any explanations, prefixes, or suffixes, just the raw username.";
+            const userQuery = `Generate a username idea based on this theme: "${userPrompt}"`;
+            
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            const MAX_RETRIES = 3;
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (generatedText) {
+                        // Clean the text to ensure it is a simple username
+                        let suggestedUsername = generatedText.replace(/[^a-zA-Z0-9-]/g, '').trim();
+                        
+                        // Fallback/cleanup: if the model is being weird, just take the first word.
+                        if (suggestedUsername.length > 30) {
+                            suggestedUsername = suggestedUsername.split(/\s|\-/)[0];
+                        }
+
+                        usernameInput.value = suggestedUsername || 'UserIdeaFail';
+                        hidePromptModal();
+                        loading.classList.add('hidden');
+                        submitButton.disabled = false;
+                        return; // Success
+                    } else {
+                        throw new Error("Invalid response structure from API.");
+                    }
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed:`, error);
+                    if (i < MAX_RETRIES - 1) {
+                        // Wait for exponential backoff before retrying
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                    } else {
+                        // Last attempt failed
+                        loading.classList.add('hidden');
+                        errorMsg.textContent = "Error generating username. Please try again later.";
+                        errorMsg.classList.remove('hidden');
+                        submitButton.disabled = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

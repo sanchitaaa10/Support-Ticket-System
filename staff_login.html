@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Login - Support Ticket System</title>
+    <!-- Font loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #000; /* Black background */
+            overflow: hidden; /* Prevent scrollbars */
+        }
+
+        /* Glass card styling remains */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .glass-card::before,
+        .glass-card::after {
+            content: '';
+            position: absolute;
+            left: -2px;
+            top: -2px;
+            background: linear-gradient(45deg, #db2777, #9333ea);
+            width: calc(100% + 4px);
+            height: calc(100% + 4px);
+            z-index: -1;
+            border-radius: 1.2rem;
+        }
+
+        .glass-card::after {
+            filter: blur(30px);
+        }
+        
+        .main-title {
+            text-shadow: 0 0 10px rgba(219, 39, 119, 0.5), 0 0 20px rgba(147, 51, 234, 0.5);
+        }
+
+        /* This class ensures the form stays centered */
+        .main-content-container {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- Main container -->
+    <div class="main-content-container flex flex-col items-center justify-center min-h-screen p-4">
+
+        <!-- Header Title -->
+        <header class="text-center mb-12">
+            <h1 class="main-title text-4xl md:text-5xl font-bold tracking-wider">
+                Support Ticket System
+            </h1>
+            <p class="text-gray-400 mt-3 text-lg">Staff Portal Access</p>
+        </header>
+
+        <!-- Login Form Card -->
+        <main class="glass-card w-full max-w-md rounded-2xl p-8 md:p-12">
+            <form>
+                <h2 class="text-3xl font-semibold mb-8 text-center text-white">Staff Login</h2>
+                
+                <!-- Email Input -->
+                <div class="mb-6 relative">
+                    <label for="email" class="block text-gray-300 mb-2">Email Address</label>
+                    <input type="email" id="email" name="email"
+                           class="w-full bg-gray-700 bg-opacity-50 text-white placeholder-gray-400 border-2 border-transparent focus:border-pink-500 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
+                           placeholder="you@example.com" required>
+                </div>
+
+                <!-- Password Input -->
+                <div class="mb-8 relative">
+                    <label for="password" class="block text-gray-300 mb-2">Password</label>
+                    <input type="password" id="password" name="password"
+                           class="w-full bg-gray-700 bg-opacity-50 text-white placeholder-gray-400 border-2 border-transparent focus:border-pink-500 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all"
+                           placeholder="••••••••" required>
+                </div>
+
+                <!-- Login Button -->
+                <a href="dashboard.html">
+    <button type="submit"
+        class="w-full bg-pink-600 hover:bg-pink-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-75 shadow-lg shadow-pink-600/20">
+        Login
+    </button>
+</a>
+
+            </form>
+        </main>
+        
+        <!-- Back to Home Link -->
+        <footer class="mt-8">
+            <a href="index.html" class="text-pink-400 hover:text-pink-300 transition-colors">
+                &larr; Back to Home
+            </a>
+        </footer>
+
+    </div>
+
+    <!-- Script to dynamically generate and randomize speed lines - REMOVED -->
+
+</body>
+</html>

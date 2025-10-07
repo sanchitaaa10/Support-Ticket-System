@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard - Support Ticket System</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Firebase Libraries -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setLogLevel, collection, query, onSnapshot, addDoc, serverTimestamp, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Set up global access for Firebase instances and State
+        window.app = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = null;
+        window.customerName = 'Guest Customer'; // Placeholder
+        window.isAuthReady = false;
+        
+        const state = {
+            userTickets: [],
+        };
+
+        setLogLevel('Debug');
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? initialAuthToken : null;
+
+        // --- UI Modal Toggle ---
+        window.toggleTicketModal = (show) => {
+            const modal = document.getElementById('ticketModal');
+            if (show) {
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        };
+
+        // --- Gemini API Call Utility ---
+
+        async function callGeminiApi(systemPrompt, userQuery) {
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+
+            const MAX_RETRIES = 3;
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (generatedText) {
+                        return generatedText;
+                    } else {
+                        throw new Error("Invalid response structure from API.");
+                    }
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed:`, error);
+                    if (i < MAX_RETRIES - 1) {
+                        // Wait for exponential backoff before retrying
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                    } else {
+                        return "AI Error: Could not generate response. Please try again later.";
+                    }
+                }
+            }
+            return "AI Error: Failed after multiple retries.";
+        }
+        
+        // --- Gemini Feature Logic ---
+
+        window.refineDescription = async () => {
+            const descriptionEl = document.getElementById('ticketDescription');
+            const refineButton = document.getElementById('refineButton');
+            const originalDescription = descriptionEl.value.trim();
+
+            if (originalDescription.length < 10) {
+                // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
+                alert("Please enter a brief description (at least 10 characters) to refine.");
+                return;
+            }
+
+            refineButton.disabled = true;
+            refineButton.textContent = 'AI Refining...';
+            
+            const systemPrompt = "You are an assistant that helps users write clear, professional, and actionable support ticket descriptions. Expand the user's brief input into a detailed, well-structured description (3-4 sentences), including necessary context like 'steps tried' or 'browser used', and focus on clarity for technical staff.";
+            const userQuery = `Refine this support ticket description:\n\n${originalDescription}`;
+            
+            const refinedText = await callGeminiApi(systemPrompt, userQuery);
+
+            descriptionEl.value = refinedText;
+            refineButton.textContent = '✨ Refine Description (AI)';
+            refineButton.disabled = false;
+        };
+
+        // --- Ticket Submission Logic ---
+
+        window.submitTicket = async () => {
+            if (!window.db || !window.isAuthReady || !window.userId) {
+                // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
+                alert("System not ready or user not logged in. Please wait.");
+                return;
+            }
+
+            const title = document.getElementById('ticketTitle').value.trim();
+            const description = document.getElementById('ticketDescription').value.trim();
+            const priority = document.getElementById('ticketPriority').value;
+            
+            if (!title || !description || !priority) {
+                 // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
+                alert("Please fill out all ticket fields.");
+                return;
+            }
+            
+            const submitButton = document.getElementById('submitTicketButton');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+
+            try {
+                const ticketsRef = collection(window.db, `artifacts/${appId}/public/data/tickets`);
+                await addDoc(ticketsRef, {
+                    title,
+                    description,
+                    priority,
+                    customer: window.customerName, // Use the display name
+                    customerId: window.userId, // Use the unique ID for filtering
+                    status: 'Open', // Initial status
+                    timestamp: serverTimestamp(),
+                });
+                
+                // Clear form upon success and close modal
+                document.getElementById('ticketTitle').value = '';
+                document.getElementById('ticketDescription').value = '';
+                document.getElementById('ticketPriority').value = 'Medium';
+                toggleTicketModal(false);
+                // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
+                alert("Ticket submitted successfully! You can see it in 'My Tickets'.");
+
+
+            } catch (error) {
+                console.error("Error submitting ticket:", error);
+                // Using a custom modal/div instead of alert is recommended, but keeping alert for brevity
+                alert("Failed to submit ticket. See console for details.");
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit New Ticket';
+            }
+        };
+
+        // --- Ticket Rendering and Stats Update ---
+
+        function getStatusColor(status) {
+            switch(status) {
+                case 'Open': return 'bg-blue-600 text-blue-100';
+                case 'In Progress': return 'bg-yellow-600 text-yellow-100';
+                case 'Awaiting Customer': return 'bg-orange-600 text-orange-100';
+                case 'Resolved': return 'bg-green-600 text-green-100';
+                case 'Closed': return 'bg-gray-500 text-gray-200';
+                default: return 'bg-gray-600 text-gray-300';
+            }
+        }
+        
+        window.renderUserTickets = (tickets) => {
+            const activeTicketListEl = document.getElementById('activeTicketList');
+            const completedTicketListEl = document.getElementById('completedTicketList');
+            
+            // 1. Separate Active and Completed tickets
+            const activeTickets = tickets.filter(t => t.status !== 'Resolved' && t.status !== 'Closed');
+            const completedTickets = tickets.filter(t => t.status === 'Resolved' || t.status === 'Closed');
+
+            // 2. Update Stat Cards (NEW)
+            document.getElementById('statTotalCount').textContent = tickets.length;
+            document.getElementById('statActiveCount').textContent = activeTickets.length;
+            document.getElementById('statCompletedCount').textContent = completedTickets.length;
+
+            // --- Render Active Tickets ---
+            if (activeTickets.length === 0) {
+                activeTicketListEl.innerHTML = `<div class="p-6 text-center text-gray-500">You have no active tickets right now.</div>`;
+            } else {
+                activeTicketListEl.innerHTML = activeTickets.map(ticket => {
+                    const statusClass = getStatusColor(ticket.status);
+                    const priorityClass = ticket.priority === 'Critical' ? 'text-red-400' : 'text-gray-400';
+                    return `
+                        <div class="p-4 rounded-xl border-l-4 border-l-purple-500 bg-gray-800 bg-opacity-70 shadow-lg transition duration-150 ease-in-out hover:bg-gray-700">
+                            <div class="flex justify-between items-start">
+                                <h4 class="text-lg font-semibold truncate text-white">${ticket.title}</h4>
+                                <span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass}">${ticket.status || 'N/A'}</span>
+                            </div>
+                            <p class="text-sm ${priorityClass} mt-1">Priority: ${ticket.priority}</p>
+                            <p class="text-xs text-gray-500 mt-2 line-clamp-2">${ticket.description || 'No detailed description.'}</p>
+                            <p class="text-xs text-gray-600 mt-2">ID: ${ticket.id} | Submitted: ${ticket.timestamp ? new Date(ticket.timestamp.seconds * 1000).toLocaleString() : 'Loading...'}</p>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // --- Render Recently Completed Tickets (Limit to 4) ---
+            const recentCompleted = completedTickets.slice(0, 4); 
+            if (recentCompleted.length === 0) {
+                completedTicketListEl.innerHTML = `<div class="p-4 text-center text-gray-500 text-sm">No recently completed tickets.</div>`;
+            } else {
+                completedTicketListEl.innerHTML = recentCompleted.map(ticket => {
+                    const statusClass = getStatusColor(ticket.status);
+                    return `
+                        <div class="p-3 rounded-lg border-l-2 border-l-green-500 bg-gray-700 bg-opacity-70 shadow-md mb-2">
+                            <div class="flex justify-between items-center">
+                                <h5 class="text-base font-medium truncate text-white">${ticket.title}</h5>
+                                <span class="text-xs font-bold px-2 py-0.5 rounded-full ${statusClass}">${ticket.status || 'N/A'}</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Closed: ${ticket.timestamp ? new Date(ticket.timestamp.seconds * 1000).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                    `;
+                }).join('');
+            }
+        };
+        
+        // --- Firebase Initialization and Data Listener ---
+
+        if (firebaseConfig) {
+            window.app = initializeApp(firebaseConfig);
+            window.db = getFirestore(window.app);
+            window.auth = getAuth(window.app);
+
+            onAuthStateChanged(window.auth, async (user) => {
+                let currentUserId;
+                if (user) {
+                    currentUserId = user.uid;
+                } else if (initialAuthToken) {
+                    try {
+                        const credential = await signInWithCustomToken(window.auth, initialAuthToken);
+                        currentUserId = credential.user.uid;
+                    } catch (error) {
+                        console.error("Custom Auth Sign-in Failed:", error);
+                        await signInAnonymously(window.auth);
+                        currentUserId = window.auth.currentUser.uid;
+                    }
+                } else {
+                    await signInAnonymously(window.auth);
+                    currentUserId = window.auth.currentUser.uid;
+                }
+                
+                window.userId = currentUserId || crypto.randomUUID();
+                // Mock a customer name based on the ID for display purposes
+                window.customerName = 'User-' + window.userId.substring(0, 8);
+                window.isAuthReady = true;
+                
+                // Update welcome message
+                document.getElementById('welcomeName').textContent = window.customerName;
+
+                if (window.db && window.isAuthReady) {
+                    const ticketsRef = collection(window.db, `artifacts/${appId}/public/data/tickets`);
+                    
+                    // Filter tickets to ONLY show the current user's tickets
+                    const ticketsQuery = query(ticketsRef, where("customerId", "==", window.userId));
+
+                    onSnapshot(ticketsQuery, (snapshot) => {
+                        state.userTickets = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+                        
+                        // Sort by newest first (important for displaying recent completed tickets)
+                        state.userTickets.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                        
+                        window.renderUserTickets(state.userTickets);
+                        
+                    }, (error) => {
+                        console.error("Error fetching user tickets:", error);
+                        document.getElementById('activeTicketList').innerHTML = `<div class="p-4 bg-red-800 bg-opacity-50 rounded-lg border border-red-700"><p class="font-bold text-red-400">Error</p><p class="text-sm text-gray-400">Failed to fetch your tickets.</p></div>`;
+                    });
+                }
+            });
+        }
+        
+        window.userLogout = () => {
+            if (window.auth) {
+                signOut(window.auth).then(() => {
+                    window.location.href = 'customer-signup.html'; // Redirect to customer login/signup
+                }).catch((error) => {
+                    console.error("Logout failed:", error);
+                });
+            } else {
+                 window.location.href = 'customer-signup.html';
+            }
+        };
+    </script>
+    <style>
+        /* Custom font */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            color: #fff;
+            /* Animated Gradient Background */
+            background: linear-gradient(-45deg, #1f083b, #0c1a4b, #8a2be2, #ff1493);
+            background-size: 400% 400%;
+            animation: gradient-animation 15s ease infinite;
+        }
+        @keyframes gradient-animation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Styling for the main header title glow */
+        .main-title {
+            text-shadow: 0 0 10px rgba(138, 43, 226, 0.7), /* Blue Violet */
+                         0 0 20px rgba(255, 20, 147, 0.5); /* Deep Pink */
+            letter-spacing: 0.15rem;
+        }
+
+        /* Glass Card Base Styles (Glowing Effect) */
+        .glass-card {
+            position: relative;
+            background: rgba(31, 41, 55, 0.7); /* Darker glass background */
+            backdrop-filter: blur(15px);
+            border-radius: 1.2rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            overflow: hidden; 
+        }
+
+        /* Animated Glowing Border */
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            width: calc(100% + 4px);
+            height: calc(100% + 4px);
+            background: linear-gradient(45deg, #8a2be2, #ff1493, #00bfff); /* Violet, Pink, Deep Sky Blue */
+            background-size: 400% 400%;
+            border-radius: 1.2rem;
+            z-index: -1;
+            opacity: 0.9;
+            animation: border-glow 4s linear infinite;
+        }
+        @keyframes border-glow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Inner card background for better readability */
+        .glass-card-inner {
+            padding: 1.5rem;
+            background: rgba(17, 24, 39, 0.9); /* Slightly opaque inner layer */
+            border-radius: 1.2rem;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Input/Select field custom focus style */
+        .custom-input {
+            color: white;
+        }
+        .custom-input:focus {
+            outline: none;
+            border-color: #8a2be2; /* Blue Violet border on focus */
+            box-shadow: 0 0 0 3px rgba(138, 43, 226, 0.5); /* Violet glow on focus */
+        }
+
+        /* Button style using the theme gradient */
+        .custom-button {
+            background-image: linear-gradient(to right, #8a2be2, #ff1493);
+            transition: all 0.3s ease;
+        }
+        .custom-button:hover:not(:disabled) {
+            box-shadow: 0 4px 15px rgba(255, 20, 147, 0.5); /* Pink shadow on hover */
+            transform: translateY(-1px);
+        }
+        .custom-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-image: none;
+            background-color: #374151;
+        }
+        /* Style for the priority select dropdown */
+        select.custom-input {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23DBEAFE'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z' clip-rule='evenodd' /%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em 1.5em;
+        }
+        
+        /* AI Refine Button specific style */
+        #refineButton {
+            background-color: #6d28d9; /* Deep violet */
+        }
+        #refineButton:hover:not(:disabled) {
+            background-color: #5b21b6;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.7);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Dashboard Container -->
+    <div class="flex flex-col h-screen w-full p-6 space-y-6">
+
+        <!-- Header and Welcome/Logout Section (Div 1) -->
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-gray-700">
+            <!-- Header Title -->
+            <h1 class="main-title text-3xl md:text-4xl font-bold tracking-wider mb-3 sm:mb-0">
+                Customer Dashboard
+            </h1>
+            
+            <!-- New Ticket and Logout -->
+            <div class="flex items-center space-x-4">
+                <!-- NEW TICKET BUTTON -->
+                <button onclick="toggleTicketModal(true)" class="custom-button px-4 py-2 text-sm rounded-lg font-semibold whitespace-nowrap">
+                    + New Ticket
+                </button>
+                <button onclick="userLogout()" class="custom-button px-4 py-2 text-sm rounded-full font-semibold whitespace-nowrap">
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN GRID CONTAINER (Responsive 1, 2, 4, or 5 column layout) -->
+        <div class="flex-grow grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 overflow-y-auto">
+
+            <!-- STATS ROW: Total, Active, Completed Tickets (Takes full width) -->
+            <div class="lg:col-span-4 xl:col-span-5 grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Stat Card: Total Tickets -->
+                <div class="glass-card text-center flex-shrink-0">
+                    <div class="glass-card-inner">
+                        <p class="text-4xl font-extrabold text-pink-400" id="statTotalCount">0</p>
+                        <p class="text-sm text-gray-400 mt-1 uppercase tracking-wider">Total Tickets</p>
+                    </div>
+                </div>
+
+                <!-- Stat Card: Active Tickets -->
+                <div class="glass-card text-center flex-shrink-0">
+                    <div class="glass-card-inner">
+                        <p class="text-4xl font-extrabold text-blue-400" id="statActiveCount">0</p>
+                        <p class="text-sm text-gray-400 mt-1 uppercase tracking-wider">Active Tickets</p>
+                    </div>
+                </div>
+
+                <!-- Stat Card: Completed Tickets -->
+                <div class="glass-card text-center flex-shrink-0">
+                    <div class="glass-card-inner">
+                        <p class="text-4xl font-extrabold text-green-400" id="statCompletedCount">0</p>
+                        <p class="text-sm text-gray-400 mt-1 uppercase tracking-wider">Completed</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. WELCOME / PROFILE CARD (Matches image style - span 2) -->
+            <div class="lg:col-span-2 xl:col-span-2 glass-card h-full min-h-[16rem]">
+                <div class="glass-card-inner flex flex-col justify-between">
+                    <div class="flex items-center space-x-4">
+                        <!-- Placeholder for Avatar -->
+                        <div class="w-20 h-20 rounded-full bg-purple-700 flex items-center justify-center text-3xl font-bold">
+                             U
+                        </div>
+                        <div>
+                            <p class="text-xl text-gray-300">Welcome back,</p>
+                            <h2 id="welcomeName" class="text-4xl font-bold text-pink-400 tracking-wide">Loading...</h2>
+                            <p class="text-sm text-gray-500">Your customer service hub.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-gray-700">
+                        <p class="text-sm text-gray-400">Customer ID:</p>
+                        <p class="text-xs text-gray-600 truncate" id="customerIdDisplay">Loading ID...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. TICKET PROGRESS / TIME TRACKER CARD (Placeholder - span 1) -->
+            <div class="lg:col-span-1 xl:col-span-1 glass-card h-full min-h-[16rem]">
+                <div class="glass-card-inner">
+                    <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
+                        Avg. Resolution Time
+                    </h3>
+                    <div class="text-center py-6">
+                        <p class="text-5xl font-extrabold text-yellow-400">1.5d</p>
+                        <p class="text-sm text-gray-500 mt-2">Days to Close Ticket</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 4. PRIORITY BREAKDOWN CARD (Placeholder - span 1) -->
+            <div class="lg:col-span-1 xl:col-span-2 glass-card h-full min-h-[16rem]">
+                <div class="glass-card-inner">
+                    <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
+                        Tickets by Priority
+                    </h3>
+                    <div class="space-y-3 pt-2">
+                         <div class="flex justify-between items-center text-red-400 font-medium"><span>Critical</span><span>0</span></div>
+                         <div class="flex justify-between items-center text-orange-400 font-medium"><span>High</span><span>0</span></div>
+                         <div class="flex justify-between items-center text-yellow-300 font-medium"><span>Medium</span><span>0</span></div>
+                         <div class="flex justify-between items-center text-blue-300 font-medium"><span>Low</span><span>0</span></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-4">Data reflects all tickets.</p>
+                </div>
+            </div>
+
+            <!-- 5. MY ACTIVE TICKETS LIST (Takes up 3 columns) -->
+            <div class="lg:col-span-3 xl:col-span-3 glass-card flex flex-col min-h-[300px] h-full">
+                <div class="glass-card-inner h-full flex flex-col">
+                    
+                    <div class="flex justify-between items-center border-b border-gray-700 pb-3 mb-6">
+                        <h3 class="text-2xl font-bold text-white">
+                            My Active Tickets
+                        </h3>
+                    </div>
+                    
+                    <p class="text-sm text-gray-400 mb-4">
+                        Currently open or in progress requests.
+                    </p>
+
+                    <!-- Container for dynamically loaded active tickets -->
+                    <div id="activeTicketList" class="space-y-4 overflow-y-auto flex-grow pr-2">
+                        <div class="p-4 bg-gray-800 bg-opacity-50 rounded-lg border border-gray-700 shadow-lg">
+                            <p class="font-bold text-pink-400">Loading Active Tickets...</p>
+                            <p class="text-sm text-gray-400">Connecting to Firestore and filtering your submitted requests.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. RECENTLY COMPLETED TICKETS LIST (Takes up 2 columns) -->
+            <div class="lg:col-span-1 xl:col-span-2 glass-card flex flex-col min-h-[300px] h-full">
+                <div class="glass-card-inner h-full flex flex-col">
+                    <h3 class="text-xl font-bold text-white border-b border-gray-700 pb-3 mb-4">
+                        Recently Completed Tickets
+                    </h3>
+                    <div id="completedTicketList" class="space-y-2 overflow-y-auto flex-grow">
+                        <div class="p-3 bg-gray-800 rounded-lg">
+                            <p class="text-gray-500 text-sm">Loading completed list...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <!-- New Ticket Submission Modal -->
+    <div id="ticketModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="glass-card w-full max-w-lg max-h-[90vh] overflow-hidden">
+            <div class="glass-card-inner h-full flex flex-col">
+                
+                <!-- Modal Header -->
+                <div class="flex justify-between items-center border-b border-gray-700 pb-3 mb-6">
+                    <h3 class="text-2xl font-bold text-white">Submit a New Ticket</h3>
+                    <button onclick="toggleTicketModal(false)" class="text-gray-400 hover:text-white transition duration-200 text-3xl leading-none">&times;</button>
+                </div>
+
+                <!-- Modal Form Content -->
+                <form class="space-y-4 flex-grow overflow-y-auto pr-2">
+                    <!-- Title -->
+                    <div>
+                        <label for="ticketTitle" class="block text-sm font-medium text-gray-300 mb-2">Issue Title</label>
+                        <input type="text" id="ticketTitle" required
+                            placeholder="e.g., App crashes on checkout"
+                            class="custom-input w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg transition duration-200 focus:ring-4 focus:ring-opacity-50"
+                        >
+                    </div>
+
+                    <!-- Priority -->
+                    <div>
+                        <label for="ticketPriority" class="block text-sm font-medium text-gray-300 mb-2">Priority</label>
+                        <select id="ticketPriority" class="w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg custom-input transition duration-200">
+                            <option value="Low">Low (General Question)</option>
+                            <option value="Medium" selected>Medium (Standard Issue)</option>
+                            <option value="High">High (Service Degradation)</option>
+                            <option value="Critical">Critical (Service Down/Blocked)</option>
+                        </select>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="flex-grow">
+                        <label for="ticketDescription" class="block text-sm font-medium text-gray-300 mb-2">Detailed Description</label>
+                        <textarea id="ticketDescription" required rows="5"
+                            placeholder="Please provide steps to reproduce the issue, error messages, and what you've tried so far."
+                            class="custom-input w-full p-3 bg-gray-700 bg-opacity-50 border border-gray-600 rounded-lg transition duration-200 focus:ring-4 focus:ring-opacity-50 resize-none"
+                        ></textarea>
+                    </div>
+                    
+                    <!-- AI Refine Button -->
+                    <button type="button" id="refineButton" onclick="refineDescription()"
+                        class="w-full py-2 text-sm font-semibold text-white rounded-lg bg-purple-700 hover:bg-purple-800 transition duration-300 shadow-md disabled:opacity-50"
+                    >
+                        ✨ Refine Description (AI)
+                    </button>
+
+                    <!-- Submit Button -->
+                    <button type="button" id="submitTicketButton" onclick="submitTicket()"
+                        class="custom-button w-full py-3 mt-4 text-lg font-semibold text-white rounded-lg shadow-lg uppercase tracking-wider"
+                    >
+                        Submit New Ticket
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

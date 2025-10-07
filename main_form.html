@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit New Support Ticket</title>
+    <!-- Font loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #000; /* Black background */
+            overflow-y: auto; /* Allow scrolling for long forms */
+        }
+
+        /* --- Main Glass Card Styling (Container) --- */
+        .glass-card {
+            /* Reverting to lighter translucent white background */
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        /* Border glow */
+        .glass-card::before,
+        .glass-card::after {
+            content: '';
+            position: absolute;
+            left: -2px;
+            top: -2px;
+            background: linear-gradient(45deg, #db2777, #9333ea);
+            width: calc(100% + 4px);
+            height: calc(100% + 4px);
+            z-index: -1;
+            border-radius: 1.2rem;
+        }
+
+        .glass-card::after {
+            filter: blur(30px);
+        }
+        
+        /* Main title styling */
+        .main-title {
+            text-shadow: 0 0 10px rgba(219, 39, 119, 0.5), 0 0 20px rgba(147, 51, 234, 0.5);
+        }
+
+        /* --- Individual Input Mirror Card Styling --- */
+        .input-mirror-card {
+            /* Reverting to lighter translucent white background */
+            background: rgba(255, 255, 255, 0.03); 
+            backdrop-filter: blur(4px); /* Less blur than main card */
+            -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 1rem; /* Padding inside the mirror container */
+            border-radius: 0.75rem; /* Rounded corners */
+            transition: all 0.3s ease;
+        }
+        
+        .input-mirror-card:focus-within {
+             /* Subtle hover/focus effect on the whole container */
+             border-color: rgba(99, 102, 241, 0.3); /* Indigo border glow */
+             box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+        }
+
+        /* Styling for all form inputs (input, select, textarea) */
+        .form-input {
+           /* THIS IS THE CRITICAL CHANGE: ensuring background is completely transparent */
+           width: 100%;
+           background-color: transparent;
+           color: #fff;
+           border-width: 2px;
+           border-color: transparent;
+           border-radius: 0.5rem;
+           padding-top: 0.5rem;
+           padding-bottom: 0.5rem;
+           padding-left: 0.75rem;
+           padding-right: 0.75rem;
+           transition: all 0.2s;
+           outline: none;
+        }
+        .form-input::placeholder {
+            color: #9ca3af; /* Tailwind's gray-400 */
+        }
+        .form-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #6366f1; /* Tailwind's indigo-500 */
+            border-color: #6366f1;
+        }
+
+        /* Specific styling for select dropdown consistency */
+        .form-select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            /* Simple arrow down icon for select */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='%239CA3AF' d='M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.5em 1.5em;
+        }
+        
+        /* Ensure the select options themselves have a dark background for readability */
+        .form-select option {
+            background-color: #1f2937; /* A solid dark gray for readability in dropdown menu */
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- Main container -->
+    <div class="main-content-container flex flex-col items-center min-h-screen p-4 py-12">
+
+        <!-- Header Title -->
+        <header class="text-center mb-10">
+            <h1 class="main-title text-4xl md:text-5xl font-bold tracking-wider">
+                Support Ticket System
+            </h1>
+            <p class="text-gray-400 mt-3 text-lg">New Customer Support Request</p>
+        </header>
+
+        <!-- Ticket Form Card -->
+        <main class="glass-card w-full max-w-2xl rounded-2xl p-8 md:p-12">
+            <form id="ticketForm" onsubmit="handleTicketSubmit(event)">
+                <h2 class="text-3xl font-semibold mb-8 text-center text-white">Submit a New Ticket</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- Username Input (Mirror Div) -->
+                    <div class="md:col-span-1 input-mirror-card">
+                        <label for="username" class="block text-gray-300 mb-2 font-medium">Username</label>
+                        <input type="text" id="username" name="username" class="form-input"
+                               placeholder="e.g., John Doe" required>
+                    </div>
+
+                    <!-- Phone Number Input (Mirror Div) -->
+                    <div class="md:col-span-1 input-mirror-card">
+                        <label for="phone" class="block text-gray-300 mb-2 font-medium">Phone Number</label>
+                        <input type="tel" id="phone" name="phone" class="form-input"
+                               placeholder="(555) 123-4567" required>
+                    </div>
+
+                    <!-- Email Input (Mirror Div - Spans 2 columns) -->
+                    <div class="md:col-span-2 input-mirror-card">
+                        <label for="email" class="block text-gray-300 mb-2 font-medium">Email Address</label>
+                        <input type="email" id="email" name="email" class="form-input"
+                               placeholder="you@clientcompany.com" required>
+                    </div>
+
+                    <!-- Priority Dropdown (Mirror Div) -->
+                    <div class="md:col-span-1 input-mirror-card">
+                        <label for="priority" class="block text-gray-300 mb-2 font-medium">Issue Priority</label>
+                        <select id="priority" name="priority" class="form-input form-select" required>
+                            <option value="" disabled selected>Select Priority Level</option>
+                            <!-- Dropdown options must still have a dark background for readability -->
+                            <option value="critical">Critical - System Down</option>
+                            <option value="high">High - Severe Impact</option>
+                            <option value="medium">Medium - Affects Workflow</option>
+                            <option value="low">Low - Cosmetic/Minor</option>
+                        </select>
+                    </div>
+
+                    <!-- Upload Document Option (Mirror Div) -->
+                    <div class="md:col-span-1 input-mirror-card">
+                        <label for="document" class="block text-gray-300 mb-2 font-medium">Attach Relevant File (Optional)</label>
+                        <!-- File input styling updated to be bg-transparent -->
+                        <input type="file" id="document" name="document"
+                               class="block w-full text-sm text-gray-400 bg-transparent
+                               file:mr-4 file:py-2 file:px-4
+                               file:rounded-full file:border-0
+                               file:text-sm file:font-semibold
+                               file:bg-indigo-500 file:text-white
+                               hover:file:bg-indigo-600 cursor-pointer mt-1"
+                        >
+                    </div>
+                </div>
+
+                <!-- Issue Description Textarea (Mirror Div - Spans 2 columns) -->
+                <div class="mb-8 relative mt-4 input-mirror-card md:col-span-2">
+                    <label for="issue" class="block text-gray-300 mb-2 font-medium">Issue Description</label>
+                    <textarea id="issue" name="issue" rows="6" class="form-input resize-none"
+                              placeholder="Please describe the issue you are facing in detail, including steps to reproduce it." required></textarea>
+                </div>
+                
+                <!-- Submit Button (Indigo) -->
+                <button type="submit"
+                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 shadow-lg shadow-indigo-600/20">
+                    Submit Ticket
+                </button>
+            </form>
+            
+            <div id="messageBox" class="mt-6 p-4 rounded-lg text-center hidden"></div>
+        </main>
+        
+        <!-- Back to Home Link (Indigo) -->
+        <footer class="mt-8 mb-4">
+            <a href="index.html" class="text-indigo-400 hover:text-indigo-300 transition-colors">
+                &larr; Back to Staff Login
+            </a>
+        </footer>
+
+    </div>
+
+    <script>
+        // Simple client-side handling for form submission
+        function handleTicketSubmit(event) {
+            event.preventDefault();
+            const messageBox = document.getElementById('messageBox');
+            
+            // In a real application, you would send this data to a server (e.g., Firebase Firestore)
+            console.log('Ticket Submission Attempted');
+            
+            // Simulate success message
+            messageBox.textContent = 'Success! Your ticket has been submitted and assigned a tracking ID. We will be in touch shortly.';
+            messageBox.className = 'mt-6 p-4 rounded-lg text-white bg-green-700 bg-opacity-50 text-center block';
+            
+            // Optionally clear the form after a short delay
+            setTimeout(() => {
+                document.getElementById('ticketForm').reset();
+                messageBox.classList.add('hidden');
+            }, 5000);
+        }
+    </script>
+
+</body>
+</html>
