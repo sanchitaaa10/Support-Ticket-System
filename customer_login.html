@@ -7,37 +7,44 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        /* Custom font and body background (static gradient) */
+        /* Custom font and body background (Animated gradient background) */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            /* Static dark gradient background */
-            background: #111827; /* Darkest primary color */
-            background: linear-gradient(135deg, #111827 0%, #1F2937 100%);
+            /* New: Vibrant Pink, Purple, Blue Animated Background */
+            background: linear-gradient(-45deg, #4c00ff, #ff00c8, #00fffb);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
         }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
 
         /* Styling for the main header title glow */
         .main-title {
-            text-shadow: 0 0 10px rgba(16, 185, 129, 0.5), /* Emerald glow */
-                         0 0 20px rgba(245, 158, 11, 0.5); /* Amber glow */
+            /* New: Pink and Blue Glow */
+            text-shadow: 0 0 10px rgba(76, 0, 255, 0.7), /* Purple */
+                         0 0 20px rgba(255, 0, 200, 0.5); /* Deep Pink */
         }
 
-        /* Glass Card Base Styles (same as staff login) */
+        /* Glass Card Base Styles */
         .glass-card {
             position: relative;
-            background: rgba(31, 41, 55, 0.75); /* Darker glass background */
+            background: rgba(31, 41, 55, 0.75);
             backdrop-filter: blur(15px);
             border-radius: 1.2rem;
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             border: 1px solid rgba(255, 255, 255, 0.18);
-            overflow: hidden; /* important for the pseudo-element glow */
+            overflow: hidden;
         }
 
-        /* Static Gradient Border (instead of animation) */
+        /* Static Gradient Border (using Pink/Purple theme) */
         .glass-card::before {
             content: '';
             position: absolute;
@@ -45,8 +52,8 @@
             left: -2px;
             width: calc(100% + 4px);
             height: calc(100% + 4px);
-            /* Emerald to Amber static gradient */
-            background: linear-gradient(45deg, #10b981, #f59e0b);
+            /* New: Purple to Pink gradient */
+            background: linear-gradient(45deg, #6d28d9, #ec4899);
             border-radius: 1.2rem;
             z-index: -1;
             opacity: 0.8;
@@ -55,7 +62,7 @@
         /* Inner card background for better readability */
         .glass-card-inner {
             padding: 2.5rem;
-            background: rgba(17, 24, 39, 0.85); /* Slightly opaque inner layer */
+            background: rgba(17, 24, 39, 0.85);
             border-radius: 1.2rem;
             width: 100%;
             height: 100%;
@@ -64,22 +71,25 @@
         /* Input field custom focus style */
         .custom-input:focus {
             outline: none;
-            border-color: #10b981; /* Emerald border on focus */
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.5); /* Emerald glow on focus */
+            border-color: #ec4899; /* Pink border on focus */
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.5); /* Pink glow on focus */
         }
 
-        /* Button style using the theme gradient */
+        /* Button style using the theme gradient (Submit Button) */
         .custom-button {
-            background-image: linear-gradient(to right, #10b981, #f59e0b);
+            /* New: Purple to Pink gradient */
+            background-image: linear-gradient(to right, #8b5cf6, #ec4899); 
             transition: all 0.3s ease;
         }
         .custom-button:hover {
-            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4); /* Amber shadow on hover */
+            box-shadow: 0 4px 15px rgba(236, 72, 153, 0.6); /* Pink shadow on hover */
             transform: translateY(-2px);
         }
+        
         /* Style for the AI button */
         .ai-button {
-            background-image: linear-gradient(to right, #10b981, #f59e0b);
+            /* New: Blue/Cyan highlight gradient */
+            background-image: linear-gradient(to right, #00d4ff, #4c00ff);
             color: white;
             padding: 0.75rem 1rem;
             font-weight: 600;
@@ -88,7 +98,18 @@
         }
         .ai-button:hover {
             opacity: 0.9;
-            box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.7);
+        }
+        
+        /* Styling for the Toggle Buttons */
+        #toggleSignUp {
+            /* Matched to the main button gradient for active state */
+            background-image: linear-gradient(to right, #8b5cf6, #ec4899);
+        }
+
+        /* Change the back to home link color to match the theme */
+        .text-gray-400:hover {
+            color: #ec4899; /* Pink hover color */
         }
 
     </style>
