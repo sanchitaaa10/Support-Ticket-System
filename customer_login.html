@@ -7,28 +7,21 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
-        /* Custom font and body background (Animated gradient background) */
+        /* Custom font and body background (Solid Black) */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            /* New: Vibrant Pink, Purple, Blue Animated Background */
-            background: linear-gradient(-45deg, #4c00ff, #ff00c8, #00fffb);
-            background-size: 400% 400%;
-            animation: gradientBG 15s ease infinite;
+            /* CHANGE: Solid Black Background */
+            background-color: #000;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
         }
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
 
         /* Styling for the main header title glow */
         .main-title {
-            /* New: Pink and Blue Glow */
+            /* Pink and Blue Glow */
             text-shadow: 0 0 10px rgba(76, 0, 255, 0.7), /* Purple */
                          0 0 20px rgba(255, 0, 200, 0.5); /* Deep Pink */
         }
@@ -36,15 +29,18 @@
         /* Glass Card Base Styles */
         .glass-card {
             position: relative;
+            /* CHANGE: Inner background for form card is the gradient */
             background: rgba(31, 41, 55, 0.75);
             backdrop-filter: blur(15px);
             border-radius: 1.2rem;
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             border: 1px solid rgba(255, 255, 255, 0.18);
             overflow: hidden;
+            /* Optional: Add a subtle glow/shadow to the card itself against the black background */
+            box-shadow: 0 0 25px rgba(255, 0, 200, 0.3);
         }
 
-        /* Static Gradient Border (using Pink/Purple theme) */
+        /* Gradient Border (applied to the card) */
         .glass-card::before {
             content: '';
             position: absolute;
@@ -52,17 +48,26 @@
             left: -2px;
             width: calc(100% + 4px);
             height: calc(100% + 4px);
-            /* New: Purple to Pink gradient */
+            /* Purple to Pink gradient */
             background: linear-gradient(45deg, #6d28d9, #ec4899);
             border-radius: 1.2rem;
             z-index: -1;
             opacity: 0.8;
+            /* CHANGE: Animated border glow */
+            background-size: 400% 400%;
+            animation: glow 10s linear infinite;
         }
 
-        /* Inner card background for better readability */
+        @keyframes glow {
+            0% { background-position: 0 0; }
+            50% { background-position: 400% 0; }
+            100% { background-position: 0 0; }
+        }
+
+        /* Inner card background for better readability (slightly darker opacity) */
         .glass-card-inner {
             padding: 2.5rem;
-            background: rgba(17, 24, 39, 0.85);
+            background: rgba(17, 24, 39, 0.95); /* Nearly opaque inner layer */
             border-radius: 1.2rem;
             width: 100%;
             height: 100%;
@@ -77,7 +82,7 @@
 
         /* Button style using the theme gradient (Submit Button) */
         .custom-button {
-            /* New: Purple to Pink gradient */
+            /* Purple to Pink gradient */
             background-image: linear-gradient(to right, #8b5cf6, #ec4899); 
             transition: all 0.3s ease;
         }
@@ -88,7 +93,7 @@
         
         /* Style for the AI button */
         .ai-button {
-            /* New: Blue/Cyan highlight gradient */
+            /* Blue/Cyan highlight gradient */
             background-image: linear-gradient(to right, #00d4ff, #4c00ff);
             color: white;
             padding: 0.75rem 1rem;
