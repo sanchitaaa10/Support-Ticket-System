@@ -147,10 +147,12 @@ TICKET_PRIORITIZATION_SYSTEM/
 <h2>📸 Screenshots</h2>
 
 - 🖼️ Customer Dashboard  
-  ![Customer Dashboard Screenshot](https://github.com/user-attachments/assets/example-customer.png)
+  ![Customer Dashboard Screenshot](https://github.com/user-attachments/assets/feefeed9-fba8-402c-8d36-455f51524938)
 
-- 🖼️ Staff Dashboard  
-  ![Staff Dashboard Screenshot](https://github.com/user-attachments/assets/example-staff.png)
+
+-- 🖼️ Staff Dashboard  
+  ![Staff Dashboard Screenshot](https://github.com/user-attachments/assets/621aed26-f0d4-47cf-a848-5bbee1f1a8ca)
+
 
 ---
 
